@@ -44,3 +44,12 @@ panos = src.sv.get_panos(points)
 
 ![Panos](./assets/region_points_panos.png "Resulting panoramas")
 
+## Roadmap
+
+### Primary
+
+- [ ] Connect panorama points to the OpenStreetMaps street grid (https://github.com/rpasquini/street-level-change/issues/3) and calculate area of coverage in meters (https://github.com/rpasquini/street-level-change/issues/1).
+
+### Secondary
+
+- [ ] Generate a street grid from Google Street View images (https://github.com/rpasquini/street-level-change/issues/4).
