@@ -44,6 +44,10 @@ panos = src.sv.get_panos(points)
 
 ![Panos](./assets/region_points_panos.png "Resulting panoramas")
 
+```python
+panos.head()
+```
+
 ```
 |    | id                     |      lat |      lon | date       |
 |---:|:-----------------------|---------:|---------:|:-----------|
