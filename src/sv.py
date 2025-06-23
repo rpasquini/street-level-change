@@ -1,3 +1,4 @@
+import pandas as pd
 from streetview import search_panoramas
 from tqdm import tqdm
 
@@ -14,4 +15,5 @@ def get_panos(points_gdf):
             date = pano.date
             panos.append((id, lat, lon, date))
 
+    panos = pd.DataFrame(panos).drop_duplicates().reset_index(drop=True)
     return panos
