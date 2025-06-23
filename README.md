@@ -2,7 +2,21 @@
 
 `street-level-change` is a Python-based pipeline to map and measure urban infrastructure change over time using Google Street View imagery.
 
-## Overview
+## Dependencies
+
+This project uses Poetry for dependency and environment management. To get started:
+
+```bash
+poetry install
+```
+
+To run the project:
+
+```bash
+poetry run python run.py
+```
+
+## Workflow Overview
 
 **Step 1: Define a Region**:
 
@@ -30,16 +44,3 @@ panos = src.sv.get_panos(points)
 
 ![Panos](./assets/region_points_panos.png "Resulting panoramas")
 
-## Dependencies
-
-This project uses Poetry for dependency and environment management. To get started:
-
-```bash
-poetry install
-```
-
-To run the project:
-
-```bash
-poetry run python run.py
-```
