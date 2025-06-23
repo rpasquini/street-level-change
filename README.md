@@ -44,6 +44,16 @@ panos = src.sv.get_panos(points)
 
 ![Panos](./assets/region_points_panos.png "Resulting panoramas")
 
+```
+|    | id                     |      lat |      lon | date       |
+|---:|:-----------------------|---------:|---------:|:-----------|
+|  0 | m87GTCsrVJFOTPCR8gVSKw | -34.586  | -58.4259 | 2013-12-01 |
+|  1 | OlCYn_A6FTJ9K87oORf9ag | -34.5859 | -58.4259 | 2014-07-01 |
+|  2 | GRS6JbAMjoHOt_e-DgYMAw | -34.586  | -58.426  | 2015-06-01 |
+|  3 | 3so_z7DA7VMLeseqeBIcPQ | -34.5859 | -58.4259 | 2016-12-01 |
+|  4 | bIZOorYAaq2zuoxBLiYTmA | -34.5859 | -58.4259 | 2017-06-01 |
+```
+
 ## Roadmap
 
 ### Primary
