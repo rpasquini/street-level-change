@@ -14,11 +14,19 @@ Provide a polygon representing the area of interest.
 
 Generate evenly spaced points (e.g., every 10 meters) within the polygon using geospatial transformation to UTM coordinates for accurate spacing.
 
+```python
+points = src.utils.create_point_grid(region, 10)
+```
+
 ![Grid of points](./assets/region_points.png "Grid of points")
 
 **Step 3: Query Street View API**:
 
 Each point is queried to check for nearby Google Street View panoramas, and metadata such as pano ID, location, and date are collected.
+
+```python
+panos = src.sv.get_panos(points)
+```
 
 ![Panos](./assets/region_points_panos.png "Resulting panoramas")
 
