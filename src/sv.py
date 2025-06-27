@@ -3,9 +3,11 @@ from streetview import search_panoramas
 from tqdm import tqdm
 
 
-def get_panos(points_gdf):
+def get_panos(points_gdf, verbose=False):
     panos = []
-    for _, row in tqdm(points_gdf.iterrows(), total=len(points_gdf)):
+    for _, row in tqdm(
+        points_gdf.iterrows(), total=len(points_gdf), disable=not verbose
+    ):
         lat, lon = row["geometry"].y, row["geometry"].x
         panos_there = search_panoramas(lat=lat, lon=lon)
 
