@@ -1,5 +1,6 @@
 import numpy as np
-from shapely.geometry import Point, box
+import geopandas as gpd
+from shapely.geometry import Point
 from shapely.ops import transform
 import pyproj
 
@@ -46,4 +47,5 @@ def create_point_grid(geometry, distance_meters):
             if geom_proj.contains(pt):
                 grid_points.append(transform(project_back, pt))
 
+    grid_points = gpd.GeoDataFrame(grid_points, columns=["geometry"], crs=4326)
     return grid_points
