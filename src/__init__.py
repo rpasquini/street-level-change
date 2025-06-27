@@ -1,1 +1,1 @@
-from . import utils, sv
+from . import utils, sv, osm_streets
