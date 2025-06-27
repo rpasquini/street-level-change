@@ -2,32 +2,7 @@ import osmnx
 import geopandas as gpd
 import pandas as pd
 
-TAGS = {
-    "highway": True
-    # "highway": [
-    #     "primary",
-    #     "primary_link",
-    #     "secondary",
-    #     "secondary_link",
-    #     "tertiary",
-    #     "tertiary_link",
-    #     "unclassified",
-    #     "residential",
-    #     "motorway",
-    #     "trunk",
-    #     "trunk_link",
-    #     "road",
-    #     "track" "pedestrian",
-    #     "service",
-    #     "living_street",
-    #     "footway",
-    #     "bridleway",
-    #     "steps",
-    #     "corridor",
-    #     "path",
-    #     "via_ferrata",
-    # ]
-}
+TAGS = {"highway": True}
 
 
 def get_roads_from_polygon(polygon):
