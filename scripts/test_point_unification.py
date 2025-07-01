@@ -15,7 +15,7 @@ import sys
 # Add the project root to the path so we can import the modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.point_unification import h3_unification, dbscan_unification
-from src.plotting.static_plotting import plot_h3_results, plot_dbscan_results
+from src.plotting.static_plotting import plot_h3_results, plot_dbscan_results, plot_panorama_dates
 
 
 def load_panorama_data(file_path):
@@ -261,6 +261,9 @@ def main():
         
         # Plot DBSCAN results
         plot_dbscan_results(dbscan_counts, output_dir)
+        
+        # Plot panorama date distribution
+        plot_panorama_dates(panos_gdf, output_dir)
         
         print(f"Visualization plots saved to {output_dir}")
     except Exception as e:
