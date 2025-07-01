@@ -62,6 +62,7 @@ def plot_dbscan_results(dbscan_df, output_dir):
 def plot_panorama_dates(panos_gdf, output_dir):
     """
     Create a plot showing the count of panorama images by date.
+    Also reports the count and percentage of panoramas with null dates.
     
     Parameters
     ----------
@@ -74,8 +75,20 @@ def plot_panorama_dates(panos_gdf, output_dir):
     if 'date' not in panos_gdf.columns:
         raise ValueError("The panorama dataframe must contain a 'date' column")
     
+    # Calculate the count and percentage of null dates
+    total_panos = len(panos_gdf)
+    nan_count = panos_gdf['date'].isna().sum()
+    nan_percent = (nan_count / total_panos) * 100 if total_panos > 0 else 0
+    
     # Convert date strings to datetime objects if needed
     date_col = panos_gdf['date']
+    valid_dates_df = panos_gdf[~panos_gdf['date'].isna()].copy()
+    
+    if len(valid_dates_df) == 0:
+        print("Warning: No valid dates found in the panorama data")
+        return
+    
+    date_col = valid_dates_df['date']
     if isinstance(date_col.iloc[0], str):
         # Try to parse dates with different formats
         try:
@@ -90,13 +103,12 @@ def plot_panorama_dates(panos_gdf, output_dir):
                 return
     
     # Extract year and month for grouping
-    panos_gdf = panos_gdf.copy()
-    panos_gdf['year'] = date_col.dt.year
-    panos_gdf['month'] = date_col.dt.month
-    panos_gdf['year_month'] = date_col.dt.strftime('%Y-%m')
+    valid_dates_df['year'] = date_col.dt.year
+    valid_dates_df['month'] = date_col.dt.month
+    valid_dates_df['year_month'] = date_col.dt.strftime('%Y-%m')
     
     # Count images by year-month
-    date_counts = panos_gdf.groupby('year_month').size().reset_index(name='count')
+    date_counts = valid_dates_df.groupby('year_month').size().reset_index(name='count')
     date_counts = date_counts.sort_values('year_month')
     
     # Plot the results
@@ -104,7 +116,7 @@ def plot_panorama_dates(panos_gdf, output_dir):
     
     # Bar plot
     ax = sns.barplot(x='year_month', y='count', data=date_counts)
-    plt.title('Panorama Image Count by Date')
+    plt.title(f'Panorama Image Count by Date\n{nan_count} panos have null dates ({nan_percent:.1f}% of the panos)')
     plt.xlabel('Date (Year-Month)')
     plt.ylabel('Number of Images')
     
@@ -120,12 +132,12 @@ def plot_panorama_dates(panos_gdf, output_dir):
     plt.close()
     
     # Also create a yearly aggregation
-    year_counts = panos_gdf.groupby('year').size().reset_index(name='count')
+    year_counts = valid_dates_df.groupby('year').size().reset_index(name='count')
     year_counts = year_counts.sort_values('year')
     
     plt.figure(figsize=(10, 6))
     ax = sns.barplot(x='year', y='count', data=year_counts)
-    plt.title('Panorama Image Count by Year')
+    plt.title(f'Panorama Image Count by Year\n{nan_count} panos have null dates ({nan_percent:.1f}% of the panos)')
     plt.xlabel('Year')
     plt.ylabel('Number of Images')
     
