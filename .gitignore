@@ -92,3 +92,6 @@ site/
 
 # OSM Cache
 cache/
+
+# Data
+data/
