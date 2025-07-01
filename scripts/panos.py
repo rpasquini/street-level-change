@@ -4,9 +4,7 @@ import geopandas as gpd
 import pandas as pd
 from tqdm import tqdm
 
-from src.osm_streets import find_region, get_roads_from_gdf
-from src.sv import get_panos
-from src.utils import create_point_grid
+from src.utils import find_region, create_point_grid, get_panos
 
 
 def load_mask(wkt_text):
@@ -104,8 +102,8 @@ if __name__ == "__main__":
     )
 
     regions = [
-        "Partido de La Plata, Buenos Aires, Argentina",
-        # "Partido de Tres de Febrero, Buenos Aires, Argentina",
+        # "Partido de La Plata, Buenos Aires, Argentina",
+        "Partido de Tres de Febrero, Buenos Aires, Argentina",
         # "Partido de San Isidro, Buenos Aires, Argentina",
     ]
     region_gdf = find_region(regions)
