@@ -142,6 +142,142 @@ def h3_unification(df: Union[pd.DataFrame, gpd.GeoDataFrame],
     return result
 
 
+def bbox_unification(df: Union[pd.DataFrame, gpd.GeoDataFrame], 
+                    epsilon: float = 0.0001,
+                    output_dir: str = 'data/point_unification') -> tuple:
+    """
+    Group panorama points using bounding box matching and graph-based connected components.
+    
+    Parameters
+    ----------
+    df : Union[pd.DataFrame, gpd.GeoDataFrame]
+        Input dataframe containing panorama points with columns: pano_id, lat, lon
+        (or geometry column with Point objects)
+    epsilon : float, default 0.0001
+        Size of the bounding box in degrees (approximately 10 meters)
+    output_dir : str, default 'data/point_unification'
+        Directory to save output CSV files
+        
+    Returns
+    -------
+    tuple
+        (clusters_df, centroids_df) containing the cluster assignments and centroids
+        
+    Notes
+    -----
+    - Uses bounding box matching to find nearby points
+    - Builds a graph where each point is a node and nearby points are connected by edges
+    - Uses networkx connected components to identify clusters
+    - Calculates centroids as the mean lat/lon of points in each cluster
+    - Saves results to CSV files
+    """
+    import os
+    import networkx as nx
+    import pandas as pd
+    from collections import defaultdict
+    
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Ensure we have lat/lon columns
+    if isinstance(df, gpd.GeoDataFrame) and 'geometry' in df.columns:
+        if 'lat' not in df.columns or 'lon' not in df.columns:
+            df['lat'] = df.geometry.y
+            df['lon'] = df.geometry.x
+    elif 'lat' not in df.columns or 'lon' not in df.columns:
+        raise ValueError("Input dataframe must have 'lat' and 'lon' columns or a geometry column")
+    
+    if 'pano_id' not in df.columns:
+        raise ValueError("Input dataframe must have a 'pano_id' column")
+    
+    # Create a spatial index using a dictionary of grid cells
+    grid_index = defaultdict(list)
+    
+    # Assign each point to grid cells
+    for idx, row in df.iterrows():
+        lat, lon = row['lat'], row['lon']
+        # Get grid cell coordinates (floor division by epsilon)
+        cell_lat = int(lat / epsilon)
+        cell_lon = int(lon / epsilon)
+        
+        # Add point to its cell and neighboring cells for efficient lookup
+        for i in range(-1, 2):  # -1, 0, 1
+            for j in range(-1, 2):  # -1, 0, 1
+                grid_index[(cell_lat + i, cell_lon + j)].append(idx)
+    
+    # Build graph of connected points
+    G = nx.Graph()
+    
+    # Add all points as nodes
+    for idx in df.index:
+        G.add_node(idx)
+    
+    # Find nearby points and add edges
+    for idx, row in df.iterrows():
+        lat, lon = row['lat'], row['lon']
+        cell_lat = int(lat / epsilon)
+        cell_lon = int(lon / epsilon)
+        
+        # Get potential neighbors from the grid cells
+        potential_neighbors = set()
+        for i in range(-1, 2):  # -1, 0, 1
+            for j in range(-1, 2):  # -1, 0, 1
+                potential_neighbors.update(grid_index[(cell_lat + i, cell_lon + j)])
+        
+        # Check actual distance and add edges
+        for neighbor_idx in potential_neighbors:
+            if idx != neighbor_idx:  # Don't compare with self
+                neighbor = df.iloc[neighbor_idx]
+                # Check if within bounding box
+                if (abs(lat - neighbor['lat']) <= epsilon and 
+                    abs(lon - neighbor['lon']) <= epsilon):
+                    G.add_edge(idx, neighbor_idx)
+    
+    # Find connected components (clusters)
+    clusters = list(nx.connected_components(G))
+    
+    # Assign cluster IDs
+    cluster_mapping = {}
+    for cluster_id, cluster in enumerate(clusters):
+        for node in cluster:
+            cluster_mapping[node] = cluster_id
+    
+    # Create clusters dataframe
+    clusters_df = pd.DataFrame({
+        'pano_id': df['pano_id'],
+        'cluster_id': [cluster_mapping.get(idx, -1) for idx in df.index]
+    })
+    
+    # Calculate centroids
+    centroids = []
+    for cluster_id in range(len(clusters)):
+        # Get indices of points in this cluster
+        cluster_points = [idx for idx, cid in cluster_mapping.items() if cid == cluster_id]
+        # Calculate mean lat/lon
+        mean_lat = df.loc[cluster_points, 'lat'].mean()
+        mean_lon = df.loc[cluster_points, 'lon'].mean()
+        centroids.append({
+            'cluster_id': cluster_id,
+            'latitude': mean_lat,
+            'longitude': mean_lon
+        })
+    
+    centroids_df = pd.DataFrame(centroids)
+    
+    # Save to CSV
+    clusters_path = os.path.join(output_dir, 'bbox_clusters.csv')
+    centroids_path = os.path.join(output_dir, 'bbox_cluster_centroids.csv')
+    
+    clusters_df.to_csv(clusters_path, index=False)
+    centroids_df.to_csv(centroids_path, index=False)
+    
+    print(f"Found {len(clusters)} clusters")
+    print(f"Saved cluster assignments to {clusters_path}")
+    print(f"Saved cluster centroids to {centroids_path}")
+    
+    return clusters_df, centroids_df
+
+
 def dbscan_unification(df: Union[pd.DataFrame, gpd.GeoDataFrame], 
                        eps_meters: float = 10, 
                        min_samples: int = 1,
