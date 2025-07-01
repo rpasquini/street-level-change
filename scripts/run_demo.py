@@ -102,15 +102,11 @@ if __name__ == "__main__":
     renabap = gpd.read_file(
         "https://archivo.habitat.gob.ar/dataset/ssisu/renabap-datos-barrios-geojson"
     )
-    # Buenos Aires - Rosario
-    # mask = load_mask(
-    #     # "POLYGON((-61.48 -32.34, -55.36 -32.34, -55.36 -36.88, -61.48 -36.88, -61.48 -32.34))"
-    #     "POLYGON ((-58.1058 -34.824, -57.8183 -34.824, -57.8183 -35.0353, -58.1058 -35.0353, -58.1058 -34.824))"
-    # )
+
     regions = [
         "Partido de La Plata, Buenos Aires, Argentina",
-        "Partido de Tres de Febrero, Buenos Aires, Argentina",
-        "Partido de San Isidro, Buenos Aires, Argentina",
+        # "Partido de Tres de Febrero, Buenos Aires, Argentina",
+        # "Partido de San Isidro, Buenos Aires, Argentina",
     ]
     region_gdf = find_region(regions)
     mask = region_gdf.union_all()
