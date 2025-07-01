@@ -1,8 +1,12 @@
-import src
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 import geopandas as gpd
 import pandas as pd
 from tqdm import tqdm
-from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from src.osm_streets import find_region, get_roads_from_gdf
+from src.sv import get_panos
+from src.utils import create_point_grid
 
 
 def load_mask(wkt_text):
@@ -51,7 +55,7 @@ def loop_polys_get_panos(
     # Step 1: Generate all grid points
     all_points = []
     for geom in tqdm(gdf_buffered.geometry, desc="Generating Grid Points"):
-        points = src.utils.create_point_grid(geom, dist_points)
+        points = create_point_grid(geom, dist_points)
         all_points.append(points)
 
     points_gdf = pd.concat(all_points).reset_index(drop=True)
@@ -59,7 +63,7 @@ def loop_polys_get_panos(
     # Step 2: Submit one job per point (GeoDataFrame with one row)
     def get_pano_for_point(point_geom):
         point_gdf = gpd.GeoDataFrame(geometry=[point_geom], crs=4326)
-        return src.sv.get_panos(point_gdf)
+        return get_panos(point_gdf)
 
     results = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -95,15 +99,22 @@ if __name__ == "__main__":
         "https://archivo.habitat.gob.ar/dataset/ssisu/renabap-datos-barrios-geojson"
     )
     # Buenos Aires - Rosario
-    mask = load_mask(
-        # "POLYGON((-61.48 -32.34, -55.36 -32.34, -55.36 -36.88, -61.48 -36.88, -61.48 -32.34))"
-        "POLYGON ((-58.1058 -34.824, -57.8183 -34.824, -57.8183 -35.0353, -58.1058 -35.0353, -58.1058 -34.824))"
-    )
+    # mask = load_mask(
+    #     # "POLYGON((-61.48 -32.34, -55.36 -32.34, -55.36 -36.88, -61.48 -36.88, -61.48 -32.34))"
+    #     "POLYGON ((-58.1058 -34.824, -57.8183 -34.824, -57.8183 -35.0353, -58.1058 -35.0353, -58.1058 -34.824))"
+    # )
+    regions = [
+        "Partido de La Plata, Buenos Aires, Argentina",
+        "Partido de Tres de Febrero, Buenos Aires, Argentina",
+        "Partido de San Isidro, Buenos Aires, Argentina",
+    ]
+    region_gdf = find_region(regions)
+    mask = region_gdf.union_all()
 
     buffered_unique = buffer_region_for_osm(
         renabap, buffer_dist=buffer_dist, mask=mask
     )
-    roads_buffered = src.osm_streets.get_roads_from_gdf(buffered_unique)
+    roads_buffered = get_roads_from_gdf(buffered_unique)
 
     panos = loop_polys_get_panos(
         renabap,
@@ -112,3 +123,4 @@ if __name__ == "__main__":
         mask=mask,
     )
     panos.to_csv("renabap_panos.csv", index=None)
+

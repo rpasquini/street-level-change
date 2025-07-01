@@ -89,3 +89,6 @@ target/
 *.pytest_cache/
 
 site/
+
+# OSM Cache
+cache/
