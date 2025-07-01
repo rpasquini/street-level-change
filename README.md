@@ -43,19 +43,19 @@ poetry install
 
 ## Usage
 
-The project provides a Makefile with commands to run different functionalities:
+The project provides a Makefile with commands to run different steps of the workflow:
 
-### Run Demo
+### Panorama Collection
 
-Executes the demo script that fetches panorama data for a sample region (La Plata, Buenos Aires):
+Executes the panorama collection script that fetches panorama data for specified regions:
 
 ```bash
-make run-demo
+make panos
 ```
 
 This will:
-1. Define a region of interest (La Plata, Buenos Aires)
-2. Create a grid of points within the region
+1. Define regions of interest (e.g., 3 de Febrero, Buenos Aires)
+2. Create a grid of points within the regions
 3. Query the Street View API for panoramas at each point
 4. Save the results to the `data/demo` directory
 
@@ -71,7 +71,7 @@ This will:
 1. Load panorama data from the demo
 2. Apply both H3-based hexagon grouping and DBSCAN clustering methods
 3. Save the results to the `data/point_unification_results` directory
-4. Generate visualization plots for the results
+4. Save the processed data to the `data/point_unification_results` directory
 
 ## Workflow Overview
 
@@ -106,6 +106,19 @@ panos = src.sv.get_panos(points)
 Group panorama points based on spatial proximity using either:
 - H3-based hexagon grouping
 - DBSCAN clustering with haversine distance
+
+### Step 5: Generate Plots
+
+Create visualizations of the processed data:
+
+```bash
+make plots
+```
+
+This will:
+1. Load processed data from the `data/point_unification_results` directory
+2. Generate visualization plots (H3 results, DBSCAN results, panorama dates)
+3. Save the plots to the `data/plots` directory
 
 ```python
 # H3 unification
