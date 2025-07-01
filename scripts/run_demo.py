@@ -1,8 +1,12 @@
-import src
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import os
 import geopandas as gpd
 import pandas as pd
 from tqdm import tqdm
-from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from src.osm_streets import find_region, get_roads_from_gdf
+from src.sv import get_panos
+from src.utils import create_point_grid
 
 
 def load_mask(wkt_text):
@@ -51,7 +55,7 @@ def loop_polys_get_panos(
     # Step 1: Generate all grid points
     all_points = []
     for geom in tqdm(gdf_buffered.geometry, desc="Generating Grid Points"):
-        points = src.utils.create_point_grid(geom, dist_points)
+        points = create_point_grid(geom, dist_points)
         all_points.append(points)
 
     points_gdf = pd.concat(all_points).reset_index(drop=True)
@@ -59,7 +63,7 @@ def loop_polys_get_panos(
     # Step 2: Submit one job per point (GeoDataFrame with one row)
     def get_pano_for_point(point_geom):
         point_gdf = gpd.GeoDataFrame(geometry=[point_geom], crs=4326)
-        return src.sv.get_panos(point_gdf)
+        return get_panos(point_gdf)
 
     results = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -84,6 +88,10 @@ def loop_polys_get_panos(
 
 
 if __name__ == "__main__":
+    # Ensure output directory exists
+    output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "demo")
+    os.makedirs(output_dir, exist_ok=True)
+    
     # Polygons buffer distance in meters
     buffer_dist = 500
     # Distance between points to point-gridding polygon buffers
@@ -95,15 +103,37 @@ if __name__ == "__main__":
         "https://archivo.habitat.gob.ar/dataset/ssisu/renabap-datos-barrios-geojson"
     )
     # Buenos Aires - Rosario
-    mask = load_mask(
-        # "POLYGON((-61.48 -32.34, -55.36 -32.34, -55.36 -36.88, -61.48 -36.88, -61.48 -32.34))"
-        "POLYGON ((-58.1058 -34.824, -57.8183 -34.824, -57.8183 -35.0353, -58.1058 -35.0353, -58.1058 -34.824))"
-    )
+    # mask = load_mask(
+    #     # "POLYGON((-61.48 -32.34, -55.36 -32.34, -55.36 -36.88, -61.48 -36.88, -61.48 -32.34))"
+    #     "POLYGON ((-58.1058 -34.824, -57.8183 -34.824, -57.8183 -35.0353, -58.1058 -35.0353, -58.1058 -34.824))"
+    # )
+    regions = [
+        "Partido de La Plata, Buenos Aires, Argentina",
+        "Partido de Tres de Febrero, Buenos Aires, Argentina",
+        "Partido de San Isidro, Buenos Aires, Argentina",
+    ]
+    region_gdf = find_region(regions)
+    mask = region_gdf.union_all()
 
-    buffered_unique = buffer_region_for_osm(
-        renabap, buffer_dist=buffer_dist, mask=mask
+    # Save region_gdf to CSV in data/demo
+    region_gdf_path = os.path.join(output_dir, "region_gdf.csv")
+    region_gdf.to_csv(region_gdf_path, index=None)
+    print(f"Region GDF saved to {region_gdf_path}")
+
+    # Save renabap intersected with region_gdf
+    renabap_intersected = renabap[renabap.intersects(mask)]
+    renabap_intersected_path = os.path.join(output_dir, "renabap_intersected.csv")
+    renabap_intersected.to_csv(renabap_intersected_path, index=None)
+    print(f"Renabap intersected saved to {renabap_intersected_path}")
+
+    # Save intersected renabap buffers
+    renabap_buffered = renabap_intersected.copy()
+    renabap_buffered["geometry"] = (
+        renabap_buffered.to_crs(3857).buffer(buffer_dist).to_crs(4326)
     )
-    roads_buffered = src.osm_streets.get_roads_from_gdf(buffered_unique)
+    renabap_buffered_path = os.path.join(output_dir, "renabap_buffered.csv")
+    renabap_buffered.to_csv(renabap_buffered_path, index=None)
+    print(f"Renabap buffered saved to {renabap_buffered_path}")
 
     panos = loop_polys_get_panos(
         renabap,
@@ -111,4 +141,8 @@ if __name__ == "__main__":
         dist_points=dist_points_grid,
         mask=mask,
     )
-    panos.to_csv("renabap_panos.csv", index=None)
+    
+    # Save panos to CSV in data/demo
+    panos_path = os.path.join(output_dir, "panos.csv")
+    panos.to_csv(panos_path, index=None)
+    print(f"Panoramas saved to {panos_path}")

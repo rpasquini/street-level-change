@@ -5,6 +5,30 @@ import pandas as pd
 TAGS = {"highway": True}
 
 
+def find_region(query: str | list) -> gpd.GeoDataFrame:
+    """
+    Find the boundary of a region using OpenStreetMap.
+
+    Parameters:
+    - query (str | list): The query to search for the region.
+
+    Returns:
+    - gpd.GeoDataFrame: The boundary of the region.
+    """
+    if isinstance(query, list):
+        gdf = gpd.GeoDataFrame(
+            pd.concat(
+                [osmnx.geocode_to_gdf(query=region) for region in query],
+                ignore_index=True,
+            ),
+            geometry="geometry",
+        )
+        return gdf
+    else:
+        gdf = osmnx.geocode_to_gdf(query=query)
+        return gdf
+
+
 def get_roads_from_polygon(polygon):
     roads_full = osmnx.features.features_from_polygon(
         polygon.envelope, tags=TAGS
@@ -30,4 +54,3 @@ def get_roads_from_gdf(gdf):
     df_output = df_output[df_output.element == "way"]
     df_output = df_output[["roadtype", "roadlength", "geometry"]]
     return df_output
-
