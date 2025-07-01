@@ -10,13 +10,12 @@ import os
 import pandas as pd
 import geopandas as gpd
 from shapely import wkt
-import matplotlib.pyplot as plt
-import seaborn as sns
 import sys
 
-# Add the project root to the path so we can import the point_unification module
+# Add the project root to the path so we can import the modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.point_unification import h3_unification, dbscan_unification
+from src.plotting.static_plotting import plot_h3_results, plot_dbscan_results, plot_panorama_dates
 
 
 def load_panorama_data(file_path):
@@ -198,38 +197,6 @@ def analyze_dbscan_results(df):
     return cluster_counts, cluster_centers_gdf
 
 
-def plot_results(h3_df, dbscan_df, output_dir):
-    """
-    Create plots to visualize the results.
-    
-    Parameters
-    ----------
-    h3_df : pd.DataFrame
-        DataFrame with H3 unification results
-    dbscan_df : pd.DataFrame
-        DataFrame with DBSCAN unification results
-    output_dir : str
-        Directory to save plots
-    """
-    # Plot H3 point count distribution
-    plt.figure(figsize=(10, 6))
-    sns.histplot(h3_df['point_count'], kde=True)
-    plt.title('Distribution of Points per H3 Hexagon')
-    plt.xlabel('Number of Points')
-    plt.ylabel('Frequency')
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, 'h3_distribution.png'))
-    
-    # Plot DBSCAN point count distribution (excluding noise points)
-    plt.figure(figsize=(10, 6))
-    dbscan_no_noise = dbscan_df[dbscan_df['cluster_id'] != -1]
-    if len(dbscan_no_noise) > 0:
-        sns.histplot(dbscan_no_noise['point_count'], kde=True)
-        plt.title('Distribution of Points per DBSCAN Cluster (Excluding Noise)')
-        plt.xlabel('Number of Points')
-        plt.ylabel('Frequency')
-        plt.tight_layout()
-        plt.savefig(os.path.join(output_dir, 'dbscan_distribution.png'))
 
 
 def main():
@@ -289,7 +256,15 @@ def main():
     
     # Create visualization plots
     try:
-        plot_results(h3_counts, dbscan_counts, output_dir)
+        # Plot H3 results
+        plot_h3_results(h3_counts, output_dir)
+        
+        # Plot DBSCAN results
+        plot_dbscan_results(dbscan_counts, output_dir)
+        
+        # Plot panorama date distribution
+        plot_panorama_dates(panos_gdf, output_dir)
+        
         print(f"Visualization plots saved to {output_dir}")
     except Exception as e:
         print(f"Error creating plots: {e}")
