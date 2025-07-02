@@ -10,16 +10,18 @@ import os
 import pandas as pd
 import geopandas as gpd
 from shapely import wkt
-import sys
+from shapely.geometry import Point
 
-# Add the project root to the path so we can import the modules
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.point_unification import h3_unification, dbscan_unification
+# Import from refactored modules
+from src.processing.point_unification import unify_points_h3, unify_points_dbscan
+from src.core.panorama import PanoramaCollection
+from src.data_handlers.loaders import load_from_csv
+from src.data_handlers.exporters import export_to_csv, export_to_geojson
 
 
 def load_panorama_data(file_path):
     """
-    Load panorama data from a CSV file and convert to GeoDataFrame.
+    Load panorama data from a CSV file and convert to GeoDataFrame or PanoramaCollection.
     
     Parameters
     ----------
@@ -28,25 +30,26 @@ def load_panorama_data(file_path):
         
     Returns
     -------
-    gpd.GeoDataFrame
-        GeoDataFrame with panorama data
+    gpd.GeoDataFrame or PanoramaCollection
+        GeoDataFrame or PanoramaCollection with panorama data
     """
     print(f"Loading panorama data from {file_path}")
     
     try:
-        # Try to load as GeoDataFrame first
-        gdf = gpd.read_file(file_path)
-        print(f"Loaded {len(gdf)} panoramas as GeoDataFrame")
-        return gdf
-    except Exception:
-        # If that fails, try loading as DataFrame and converting geometry column
+        # Try to load using data_handlers module
+        df = load_from_csv(file_path)
+        print(f"Loaded {len(df)} panoramas as DataFrame")
+        
+        # Try to convert to PanoramaCollection if it has the required columns
         try:
-            df = pd.read_csv(file_path)
-            print(f"Loaded {len(df)} panoramas as DataFrame")
+            panoramas = PanoramaCollection.from_dataframe(df)
+            print(f"Converted to PanoramaCollection with {len(panoramas)} panoramas")
+            return panoramas
+        except Exception as e:
+            print(f"Could not convert to PanoramaCollection: {e}")
             
-            # Check if 'geometry' column exists
+            # Fall back to creating a GeoDataFrame
             if 'geometry' in df.columns:
-                # Try to convert WKT strings to geometry objects
                 try:
                     geometries = df['geometry'].apply(wkt.loads)
                     gdf = gpd.GeoDataFrame(df, geometry=geometries, crs="EPSG:4326")
@@ -56,15 +59,14 @@ def load_panorama_data(file_path):
             
             # If no geometry column or conversion failed, try using lat/lon columns
             if 'lat' in df.columns and 'lon' in df.columns:
-                from shapely.geometry import Point
                 geometries = [Point(lon, lat) for lon, lat in zip(df['lon'], df['lat'])]
                 gdf = gpd.GeoDataFrame(df, geometry=geometries, crs="EPSG:4326")
                 return gdf
             
             raise ValueError("Could not find geometry or lat/lon columns in the data")
-        except Exception as e:
-            print(f"Error loading panorama data: {e}")
-            raise
+    except Exception as e:
+        print(f"Error loading panorama data: {e}")
+        raise
 
 
 def analyze_h3_results(df):
@@ -199,33 +201,45 @@ def analyze_dbscan_results(df):
 
 
 def main():
+    """
+    Main function to test point unification algorithms.
+    """
     # Default configuration
-    input_file = 'data/demo/panos.csv'
+    input_file = 'data/panos/panos.csv'
     output_dir = 'data/point_unification_results'
     h3_resolution = 11
-    dbscan_eps = 5
+    dbscan_eps = 0.000045 # 5 meters at the equator
     dbscan_min_samples = 1
     
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
     
     # Load panorama data
-    panos_gdf = load_panorama_data(input_file)
+    panorama_data = load_panorama_data(input_file)
     
     # Apply H3 unification
     print(f"\nApplying H3 unification with resolution={h3_resolution}")
-    h3_results = h3_unification(panos_gdf, resolution=h3_resolution)
+    h3_results = unify_points_h3(panorama_data, resolution=h3_resolution)
     
     # Apply DBSCAN unification
-    print(f"\nApplying DBSCAN unification with eps={dbscan_eps}m, min_samples={dbscan_min_samples}")
-    dbscan_results = dbscan_unification(panos_gdf, eps_meters=dbscan_eps, min_samples=dbscan_min_samples)
+    print(f"\nApplying DBSCAN unification with eps={dbscan_eps}, min_samples={dbscan_min_samples}")
+    dbscan_results = unify_points_dbscan(panorama_data, eps=dbscan_eps, min_samples=dbscan_min_samples)
     
     # Analyze and save H3 results
     h3_counts = analyze_h3_results(h3_results)
+    
+    # Save results using data_handlers exporters
     h3_output_path = os.path.join(output_dir, 'h3_results.csv')
-    h3_results.to_csv(h3_output_path, index=False)
+    
+    # Convert to DataFrame if it's a PanoramaCollection
+    if isinstance(h3_results, PanoramaCollection):
+        h3_results_df = h3_results.to_dataframe()
+        export_to_csv(h3_results_df, h3_output_path)
+    else:
+        export_to_csv(h3_results, h3_output_path)
+    
     h3_counts_path = os.path.join(output_dir, 'h3_counts.csv')
-    h3_counts.to_csv(h3_counts_path, index=False)
+    export_to_csv(h3_counts, h3_counts_path)
     print(f"H3 results saved to {h3_output_path}")
     print(f"H3 counts saved to {h3_counts_path}")
     
@@ -234,24 +248,57 @@ def main():
     
     # Save main results with cluster IDs
     dbscan_output_path = os.path.join(output_dir, 'dbscan_results.csv')
-    dbscan_results.to_csv(dbscan_output_path, index=False)
+    if isinstance(dbscan_results, PanoramaCollection):
+        dbscan_results_df = dbscan_results.to_dataframe()
+        export_to_csv(dbscan_results_df, dbscan_output_path)
+    else:
+        export_to_csv(dbscan_results, dbscan_output_path)
     print(f"DBSCAN results saved to {dbscan_output_path}")
     
     # Save cluster counts
     dbscan_counts_path = os.path.join(output_dir, 'dbscan_counts.csv')
-    dbscan_counts.to_csv(dbscan_counts_path, index=False)
+    export_to_csv(dbscan_counts, dbscan_counts_path)
     print(f"DBSCAN counts saved to {dbscan_counts_path}")
     
     # Save cluster centers
     dbscan_centers_path = os.path.join(output_dir, 'dbscan_centers.csv')
-    dbscan_centers.to_csv(dbscan_centers_path, index=False)
+    export_to_csv(dbscan_centers, dbscan_centers_path)
     print(f"DBSCAN cluster centers saved to {dbscan_centers_path}")
     
     # Save cluster centers as GeoJSON for easy visualization
     dbscan_centers_geojson_path = os.path.join(output_dir, 'dbscan_centers.geojson')
     if len(dbscan_centers) > 0:
-        dbscan_centers.to_file(dbscan_centers_geojson_path, driver='GeoJSON')
+        export_to_geojson(dbscan_centers, dbscan_centers_geojson_path)
         print(f"DBSCAN cluster centers saved as GeoJSON to {dbscan_centers_geojson_path}")
+        
+    # Optional: Create interactive visualization
+    create_interactive = False
+    if create_interactive:
+        from src.visualization.interactive_plotting import create_cluster_map, save_map
+        
+        # Create interactive map with DBSCAN clusters
+        if isinstance(dbscan_results, PanoramaCollection):
+            gdf = dbscan_results.to_geodataframe()
+        else:
+            gdf = dbscan_results
+            
+        if 'location_id' in gdf.columns:
+            m = create_cluster_map(gdf, cluster_column='location_id')
+            interactive_path = os.path.join(output_dir, 'dbscan_interactive_map.html')
+            save_map(m, interactive_path)
+            print(f"Interactive DBSCAN map saved to {interactive_path}")
+            
+        # Create interactive map with H3 clusters
+        if isinstance(h3_results, PanoramaCollection):
+            gdf = h3_results.to_geodataframe()
+        else:
+            gdf = h3_results
+            
+        if 'location_id' in gdf.columns:
+            m = create_cluster_map(gdf, cluster_column='location_id')
+            interactive_path = os.path.join(output_dir, 'h3_interactive_map.html')
+            save_map(m, interactive_path)
+            print(f"Interactive H3 map saved to {interactive_path}")
     
 
 if __name__ == "__main__":

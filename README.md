@@ -122,10 +122,10 @@ This will:
 
 ```python
 # H3 unification
-h3_results = h3_unification(panos_gdf, resolution=11)
+h3_results = unify_points_h3(panos_gdf, resolution=11)
 
 # DBSCAN unification
-dbscan_results = dbscan_unification(panos_gdf, eps_meters=5, min_samples=1)
+dbscan_results = unify_points_dbscan(panos_gdf, eps_meters=5, min_samples=1)
 ```
 
 ## Next Steps & Future Developments
