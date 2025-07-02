@@ -14,6 +14,11 @@ import h3
 from sklearn.cluster import DBSCAN
 from tqdm import tqdm
 
+import networkx as nx
+from sklearn.neighbors import BallTree
+import numpy as np
+
+
 from src.core.panorama import PanoramaCollection
 
 
@@ -109,9 +114,8 @@ def unify_points_dbscan(
 
 
 def unify_points_bounding_box(
-    gdf: Union[gpd.GeoDataFrame, PanoramaCollection],
-    box_size: float = 0.0001,
-    id_column: str = 'location_id'
+    gdf: Union[gpd.GeoDataFrame, 'PanoramaCollection'],
+    box_size: float = 0.0001
 ) -> gpd.GeoDataFrame:
     """
     Unify points using bounding box grid.
@@ -119,225 +123,64 @@ def unify_points_bounding_box(
     Parameters
     ----------
     gdf : gpd.GeoDataFrame
-        GeoDataFrame with points to unify
+        GeoDataFrame with points to unify. Must have POINT geometries.
     box_size : float, default=0.0001
-        Size of the bounding box grid cells
-    id_column : str, default='location_id'
-        Name of the column to store grid cell IDs
+        Size of the bounding box grid cells (in degrees).
         
     Returns
     -------
     gpd.GeoDataFrame
-        GeoDataFrame with unified points
+        GeoDataFrame with an additional `cluster_id` column.
     """
-    if isinstance(gdf, PanoramaCollection):
+    if hasattr(gdf, "to_geodataframe"):  # support PanoramaCollection-style wrapper
         gdf = gdf.to_geodataframe()
-    
-    # Make a copy to avoid modifying the original
-    result = gdf.copy()
-    
-    # Ensure the GeoDataFrame has a proper CRS
-    if result.crs is None:
-        result.set_crs(epsg=4326, inplace=True)
-    elif result.crs != "EPSG:4326":
-        result = result.to_crs(epsg=4326)
-    
-    # Calculate grid cell IDs
-    result[id_column] = result.apply(
-        lambda row: f"{int(row.geometry.x / box_size)}_{int(row.geometry.y / box_size)}",
-        axis=1
-    )
-    
-    return result
 
+    if not isinstance(gdf, gpd.GeoDataFrame):
+        raise ValueError("Input must be a GeoDataFrame or PanoramaCollection")
 
-def analyze_h3_results(
-    gdf: gpd.GeoDataFrame,
-    id_column: str = 'location_id'
-) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-    """
-    Analyze H3 unification results.
-    
-    Parameters
-    ----------
-    gdf : gpd.GeoDataFrame
-        GeoDataFrame with H3 unification results
-    id_column : str, default='location_id'
-        Name of the column containing H3 indices
-        
-    Returns
-    -------
-    Tuple[pd.DataFrame, Dict[str, Any]]
-        DataFrame with H3 counts and dictionary with statistics
-    """
-    # Calculate counts per H3 cell
-    h3_counts = gdf[id_column].value_counts().reset_index()
-    h3_counts.columns = ['h3_index', 'point_count']
-    
-    # Calculate statistics
-    stats = {
-        'total_points': len(gdf),
-        'unique_h3_cells': len(h3_counts),
-        'max_points_per_cell': h3_counts['point_count'].max(),
-        'min_points_per_cell': h3_counts['point_count'].min(),
-        'avg_points_per_cell': h3_counts['point_count'].mean(),
-        'median_points_per_cell': h3_counts['point_count'].median()
-    }
-    
-    return h3_counts, stats
+    if not gdf.geometry.iloc[0].geom_type == "Point":
+        raise ValueError("Geometry column must contain POINT geometries")
 
+    gdf = gdf.copy()
+    gdf["lat"] = gdf.geometry.y
+    gdf["lon"] = gdf.geometry.x
+    gdf = gdf.reset_index(drop=True)
 
-def analyze_dbscan_results(
-    gdf: gpd.GeoDataFrame,
-    id_column: str = 'location_id'
-) -> Tuple[pd.DataFrame, Dict[str, Any], gpd.GeoDataFrame]:
-    """
-    Analyze DBSCAN unification results.
-    
-    Parameters
-    ----------
-    gdf : gpd.GeoDataFrame
-        GeoDataFrame with DBSCAN unification results
-    id_column : str, default='location_id'
-        Name of the column containing cluster IDs
-        
-    Returns
-    -------
-    Tuple[pd.DataFrame, Dict[str, Any], gpd.GeoDataFrame]
-        DataFrame with cluster counts, dictionary with statistics,
-        and GeoDataFrame with cluster centers
-    """
-    # Calculate counts per cluster
-    cluster_counts = gdf[id_column].value_counts().reset_index()
-    cluster_counts.columns = ['cluster_id', 'point_count']
-    
-    # Calculate statistics
-    stats = {
-        'total_points': len(gdf),
-        'unique_clusters': len(cluster_counts),
-        'noise_points': len(gdf[gdf[id_column] == -1]),
-        'max_points_per_cluster': cluster_counts['point_count'].max(),
-        'min_points_per_cluster': cluster_counts['point_count'].min(),
-        'avg_points_per_cluster': cluster_counts['point_count'].mean(),
-        'median_points_per_cluster': cluster_counts['point_count'].median()
-    }
-    
-    # Calculate cluster centers
-    cluster_centers = []
-    
-    for cluster_id in sorted(gdf[id_column].unique()):
-        if cluster_id == -1:
-            continue
-            
-        # Get points in this cluster
-        cluster_points = gdf[gdf[id_column] == cluster_id]
-        
-        # Calculate centroid
-        center_lon = cluster_points.geometry.x.mean()
-        center_lat = cluster_points.geometry.y.mean()
-        
-        cluster_centers.append({
-            'cluster_id': cluster_id,
-            'center_lat': center_lat,
-            'center_lon': center_lon,
-            'point_count': len(cluster_points)
-        })
-    
-    # Create DataFrame with cluster centers
-    if cluster_centers:
-        cluster_centers_df = pd.DataFrame(cluster_centers)
-        
-        # Create geometry column for the centers
-        geometries = [Point(row['center_lon'], row['center_lat']) 
-                     for _, row in cluster_centers_df.iterrows()]
-        cluster_centers_gdf = gpd.GeoDataFrame(
-            cluster_centers_df, 
-            geometry=geometries,
-            crs="EPSG:4326"
-        )
-    else:
-        # Create empty GeoDataFrame if no clusters
-        cluster_centers_gdf = gpd.GeoDataFrame(
-            columns=['cluster_id', 'center_lat', 'center_lon', 'point_count'],
-            geometry=[],
-            crs="EPSG:4326"
-        )
-    
-    return cluster_counts, stats, cluster_centers_gdf
+    # Sort for efficient join
+    gdf_sorted = gdf.sort_values(["lat", "lon"]).reset_index(drop=True)
 
+    matches = []
 
-def compare_unification_methods(
-    gdf: gpd.GeoDataFrame,
-    h3_resolution: int = 10,
-    dbscan_eps: float = 0.0001,
-    dbscan_min_samples: int = 1,
-    box_size: float = 0.0001
-) -> Dict[str, Dict[str, Any]]:
-    """
-    Compare different point unification methods.
-    
-    Parameters
-    ----------
-    gdf : gpd.GeoDataFrame
-        GeoDataFrame with points to unify
-    h3_resolution : int, default=10
-        H3 resolution (0-15, where 15 is highest resolution)
-    dbscan_eps : float, default=0.0001
-        Maximum distance between points in a DBSCAN cluster
-    dbscan_min_samples : int, default=1
-        Minimum number of points to form a DBSCAN cluster
-    box_size : float, default=0.0001
-        Size of the bounding box grid cells
-        
-    Returns
-    -------
-    Dict[str, Dict[str, Any]]
-        Dictionary with comparison results
-    """
-    # Apply each unification method
-    h3_results = unify_points_h3(gdf, resolution=h3_resolution)
-    dbscan_results = unify_points_dbscan(gdf, eps=dbscan_eps, min_samples=dbscan_min_samples)
-    bbox_results = unify_points_bounding_box(gdf, box_size=box_size)
-    
-    # Analyze results
-    h3_counts, h3_stats = analyze_h3_results(h3_results)
-    dbscan_counts, dbscan_stats, dbscan_centers = analyze_dbscan_results(dbscan_results)
-    
-    # Calculate counts for bounding box
-    bbox_counts = bbox_results['location_id'].value_counts().reset_index()
-    bbox_counts.columns = ['bbox_id', 'point_count']
-    
-    bbox_stats = {
-        'total_points': len(bbox_results),
-        'unique_boxes': len(bbox_counts),
-        'max_points_per_box': bbox_counts['point_count'].max(),
-        'min_points_per_box': bbox_counts['point_count'].min(),
-        'avg_points_per_box': bbox_counts['point_count'].mean(),
-        'median_points_per_box': bbox_counts['point_count'].median()
-    }
-    
-    # Compile comparison results
-    comparison = {
-        'h3': {
-            'results': h3_results,
-            'counts': h3_counts,
-            'stats': h3_stats
-        },
-        'dbscan': {
-            'results': dbscan_results,
-            'counts': dbscan_counts,
-            'stats': dbscan_stats,
-            'centers': dbscan_centers
-        },
-        'bounding_box': {
-            'results': bbox_results,
-            'counts': bbox_counts,
-            'stats': bbox_stats
-        }
-    }
-    
-    return comparison
+    # Brute force: only check small sliding window in sorted coordinates
+    for i, row in gdf_sorted.iterrows():
+        lat_min = row["lat"] - box_size
+        lat_max = row["lat"] + box_size
+        lon_min = row["lon"] - box_size
+        lon_max = row["lon"] + box_size
 
+        subset = gdf_sorted[
+            (gdf_sorted["lat"] >= lat_min) & (gdf_sorted["lat"] <= lat_max) &
+            (gdf_sorted["lon"] >= lon_min) & (gdf_sorted["lon"] <= lon_max)
+        ]
+
+        for j in subset.index:
+            if i < j:
+                matches.append((i, j))
+
+    # Build graph from matched index pairs
+    G = nx.Graph()
+    G.add_nodes_from(gdf.index)
+    G.add_edges_from(matches)
+
+    # Connected components = clusters
+    index_to_cluster = {}
+    for cluster_id, component in enumerate(nx.connected_components(G)):
+        for idx in component:
+            index_to_cluster[idx] = cluster_id
+
+    gdf["cluster_id"] = gdf.index.map(index_to_cluster)
+
+    return gdf
 
 def unify_panorama_collection(
     panoramas: PanoramaCollection,

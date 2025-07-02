@@ -82,143 +82,6 @@ def export_panorama_data(
     print(f"Exported data to {file_path}")
     return file_path
 
-
-def export_h3_results(
-    results: Union[pd.DataFrame, gpd.GeoDataFrame],
-    output_dir: str,
-    base_filename: str = 'h3_results'
-) -> Dict[str, str]:
-    """
-    Export H3 unification results to files.
-    
-    Parameters
-    ----------
-    results : Union[pd.DataFrame, gpd.GeoDataFrame]
-        H3 unification results
-    output_dir : str
-        Directory to save the files
-    base_filename : str, default='h3_results'
-        Base filename for the output files
-        
-    Returns
-    -------
-    Dict[str, str]
-        Dictionary mapping file types to file paths
-    """
-    ensure_directory_exists(output_dir)
-    
-    # Export main results
-    results_path = os.path.join(output_dir, f'{base_filename}.csv')
-    results.to_csv(results_path, index=False)
-    
-    # Calculate and export counts
-    if 'location_id' in results.columns:
-        h3_counts = results['location_id'].value_counts().reset_index()
-        h3_counts.columns = ['h3_index', 'point_count']
-        
-        counts_path = os.path.join(output_dir, f'{base_filename}_counts.csv')
-        h3_counts.to_csv(counts_path, index=False)
-        
-        return {
-            'results': results_path,
-            'counts': counts_path
-        }
-    
-    return {'results': results_path}
-
-
-def export_dbscan_results(
-    results: Union[pd.DataFrame, gpd.GeoDataFrame],
-    output_dir: str,
-    base_filename: str = 'dbscan_results',
-    include_centers: bool = True
-) -> Dict[str, str]:
-    """
-    Export DBSCAN unification results to files.
-    
-    Parameters
-    ----------
-    results : Union[pd.DataFrame, gpd.GeoDataFrame]
-        DBSCAN unification results
-    output_dir : str
-        Directory to save the files
-    base_filename : str, default='dbscan_results'
-        Base filename for the output files
-    include_centers : bool, default=True
-        Whether to calculate and export cluster centers
-        
-    Returns
-    -------
-    Dict[str, str]
-        Dictionary mapping file types to file paths
-    """
-    ensure_directory_exists(output_dir)
-    
-    # Export main results
-    results_path = os.path.join(output_dir, f'{base_filename}.csv')
-    results.to_csv(results_path, index=False)
-    
-    output_files = {'results': results_path}
-    
-    # Calculate and export counts
-    if 'location_id' in results.columns:
-        cluster_counts = results['location_id'].value_counts().reset_index()
-        cluster_counts.columns = ['cluster_id', 'point_count']
-        
-        counts_path = os.path.join(output_dir, f'{base_filename}_counts.csv')
-        cluster_counts.to_csv(counts_path, index=False)
-        output_files['counts'] = counts_path
-        
-        # Calculate and export cluster centers if requested
-        if include_centers and isinstance(results, gpd.GeoDataFrame):
-            # Skip noise points (cluster_id = -1)
-            cluster_centers = []
-            
-            for cluster_id in sorted(results['location_id'].unique()):
-                if cluster_id == -1:
-                    continue
-                    
-                # Get points in this cluster
-                cluster_points = results[results['location_id'] == cluster_id]
-                
-                # Calculate centroid
-                center_lon = cluster_points.geometry.x.mean()
-                center_lat = cluster_points.geometry.y.mean()
-                
-                cluster_centers.append({
-                    'cluster_id': cluster_id,
-                    'center_lat': center_lat,
-                    'center_lon': center_lon,
-                    'point_count': len(cluster_points)
-                })
-            
-            # Create DataFrame with cluster centers
-            if cluster_centers:
-                cluster_centers_df = pd.DataFrame(cluster_centers)
-                
-                # Create geometry column for the centers
-                from shapely.geometry import Point
-                geometries = [Point(row['center_lon'], row['center_lat']) 
-                             for _, row in cluster_centers_df.iterrows()]
-                cluster_centers_gdf = gpd.GeoDataFrame(
-                    cluster_centers_df, 
-                    geometry=geometries,
-                    crs="EPSG:4326"
-                )
-                
-                # Export centers as CSV
-                centers_path = os.path.join(output_dir, f'{base_filename}_centers.csv')
-                cluster_centers_gdf.to_csv(centers_path, index=False)
-                output_files['centers_csv'] = centers_path
-                
-                # Export centers as GeoJSON
-                centers_geojson_path = os.path.join(output_dir, f'{base_filename}_centers.geojson')
-                cluster_centers_gdf.to_file(centers_geojson_path, driver='GeoJSON')
-                output_files['centers_geojson'] = centers_geojson_path
-    
-    return output_files
-
-
 def export_to_csv(data: Union[pd.DataFrame, gpd.GeoDataFrame, PanoramaCollection], file_path: str) -> str:
     """
     Export data to a CSV file.
@@ -235,7 +98,11 @@ def export_to_csv(data: Union[pd.DataFrame, gpd.GeoDataFrame, PanoramaCollection
     str
         Path to the exported file
     """
-    return export_panorama_data(data, file_path, format='csv')
+    if isinstance(data, PanoramaCollection):
+        export_panorama_data(data, file_path, format='csv')
+    else:
+        data.to_csv(file_path, index=False)
+    return file_path
 
 
 def export_to_geojson(data: Union[gpd.GeoDataFrame, PanoramaCollection], file_path: str) -> str:

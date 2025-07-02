@@ -12,7 +12,24 @@ from shapely.geometry import Point
 from shapely.ops import transform
 import pyproj
 from typing import List, Union, Optional
+from shapely import wkt
 
+def load_mask(wkt_text):
+    """
+    Load a mask from a WKT string.
+    
+    Parameters
+    ----------
+    wkt_text : str
+        WKT string representing a geometry
+        
+    Returns
+    -------
+    shapely.geometry.BaseGeometry
+        Geometry object
+    """
+    mask = wkt.loads(wkt_text)
+    return mask
 
 def create_point_grid(geometry, distance_meters: float) -> gpd.GeoDataFrame:
     """
@@ -63,6 +80,28 @@ def create_point_grid(geometry, distance_meters: float) -> gpd.GeoDataFrame:
     grid_points = gpd.GeoDataFrame(grid_points, columns=["geometry"], crs=4326)
     return grid_points
 
+def create_point_grid_from_gdf(gdf: gpd.GeoDataFrame, dist_points: float) -> gpd.GeoDataFrame:
+    """
+    Create a grid of points from a GeoDataFrame.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        GeoDataFrame containing geometries
+    dist_points : float
+        Distance between points in meters
+
+    Returns
+    -------
+    gpd.GeoDataFrame
+        GeoDataFrame containing grid points
+    """
+    all_points = []
+    for geom in tqdm(gdf.geometry, desc="Generating Grid Points"):
+        points = create_point_grid(geom, dist_points)
+        all_points.append(points)
+    points_gdf = pd.concat(all_points).reset_index(drop=True)
+    return points_gdf
 
 def find_region(query: Union[str, List[str]]) -> gpd.GeoDataFrame:
     """

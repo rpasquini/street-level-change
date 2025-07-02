@@ -27,6 +27,7 @@ scikit-learn = "^1.7.0"
 osmnx = "^2.0.4"
 seaborn = "^0.13.2"
 contextily = "^1.6.2"
+networkx = "^3.5"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
