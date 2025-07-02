@@ -112,23 +112,6 @@ def load_panorama_collection(file_path: str) -> PanoramaCollection:
     return PanoramaCollection.from_geodataframe(gdf)
 
 
-def load_point_unification_results(file_path: str) -> gpd.GeoDataFrame:
-    """
-    Load point unification results from a file.
-    
-    Parameters
-    ----------
-    file_path : str
-        Path to the file containing point unification results
-        
-    Returns
-    -------
-    gpd.GeoDataFrame
-        GeoDataFrame with point unification results
-    """
-    return load_panorama_data(file_path)
-
-
 def load_from_csv(file_path: str) -> pd.DataFrame:
     """
     Load data from a CSV file.
@@ -145,54 +128,3 @@ def load_from_csv(file_path: str) -> pd.DataFrame:
     """
     print(f"Loading data from {file_path}")
     return pd.read_csv(file_path)
-
-
-def load_dbscan_centers(file_path: str) -> gpd.GeoDataFrame:
-    """
-    Load DBSCAN cluster centers from a file.
-    
-    Parameters
-    ----------
-    file_path : str
-        Path to the file containing DBSCAN cluster centers
-        
-    Returns
-    -------
-    gpd.GeoDataFrame
-        GeoDataFrame with DBSCAN cluster centers
-    """
-    # Check file extension
-    _, ext = os.path.splitext(file_path)
-    ext = ext.lower()
-    
-    if ext == '.geojson':
-        return gpd.read_file(file_path)
-    elif ext == '.csv':
-        df = pd.read_csv(file_path)
-        
-        # Check if we have center_lat and center_lon columns
-        if 'center_lat' in df.columns and 'center_lon' in df.columns:
-            from shapely.geometry import Point
-            geometries = [Point(row['center_lon'], row['center_lat']) 
-                         for _, row in df.iterrows()]
-            return gpd.GeoDataFrame(df, geometry=geometries, crs="EPSG:4326")
-        
-        # If we have lat and lon columns
-        elif 'lat' in df.columns and 'lon' in df.columns:
-            from shapely.geometry import Point
-            geometries = [Point(row['lon'], row['lat']) 
-                         for _, row in df.iterrows()]
-            return gpd.GeoDataFrame(df, geometry=geometries, crs="EPSG:4326")
-        
-        # If we have a geometry column as WKT
-        elif 'geometry' in df.columns:
-            try:
-                geometries = df['geometry'].apply(wkt.loads)
-                return gpd.GeoDataFrame(df, geometry=geometries, crs="EPSG:4326")
-            except Exception as e:
-                print(f"Error converting geometry column: {e}")
-                raise
-        
-        raise ValueError("Could not find coordinate or geometry columns")
-    else:
-        raise ValueError(f"Unsupported file format: {ext}")
