@@ -13,12 +13,10 @@ from shapely import wkt
 from shapely.geometry import Point
 
 # Import from refactored modules
-from src.processing.point_unification import unify_points_h3, unify_points_dbscan, unify_points_bounding_box
+from src.processing.point_unification import unify_points_dbscan
 from src.core.panorama import PanoramaCollection
 from src.data_handlers.loaders import load_from_csv
-from src.data_handlers.exporters import export_to_csv, export_to_geojson
-
-from typing import Tuple, Dict, Any
+from src.data_handlers.exporters import export_to_csv
 
 def load_panorama_data(file_path):
     """
@@ -31,8 +29,7 @@ def load_panorama_data(file_path):
         
     Returns
     -------
-    gpd.GeoDataFrame or PanoramaCollection
-        GeoDataFrame or PanoramaCollection with panorama data
+    GeoDataFrame
     """
     print(f"Loading panorama data from {file_path}")
     
@@ -45,7 +42,7 @@ def load_panorama_data(file_path):
         try:
             panoramas = PanoramaCollection.from_dataframe(df)
             print(f"Converted to PanoramaCollection with {len(panoramas)} panoramas")
-            return panoramas
+            return panoramas.to_geodataframe()
         except Exception as e:
             print(f"Could not convert to PanoramaCollection: {e}")
             
@@ -76,44 +73,23 @@ def main():
     # Default configuration
     input_file = 'data/panos/panos.csv'
     output_dir = 'data/point_unification_results'
-    h3_resolution = 11
     dbscan_eps = 0.000045 # 5 meters at the equator
     dbscan_min_samples = 1
-    box_size = 0.000045 # 5 meters at the equator
-    
+
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
     
     # Load panorama data
     panorama_data = load_panorama_data(input_file)
     
-    # Apply H3 unification
-    print(f"\nApplying H3 unification with resolution={h3_resolution}")
-    h3_results = unify_points_h3(panorama_data, resolution=h3_resolution)
-    
     # Apply DBSCAN unification
     print(f"\nApplying DBSCAN unification with eps={dbscan_eps}, min_samples={dbscan_min_samples}")
     dbscan_results = unify_points_dbscan(panorama_data, eps=dbscan_eps, min_samples=dbscan_min_samples)
-
-    # Apply bounding box unification
-    print(f"\nApplying bounding box unification with box_size={box_size}")
-    bbox_results = unify_points_bounding_box(panorama_data, box_size=box_size)
     
     # Save results using data_handlers exporters
-    h3_output_path = os.path.join(output_dir, 'h3_results.csv')
-    export_to_csv(h3_results, h3_output_path)
-    
-    print(f"H3 results saved to {h3_output_path}")
-    
-    # Save main results with cluster IDs
     dbscan_output_path = os.path.join(output_dir, 'dbscan_results.csv')
     export_to_csv(dbscan_results, dbscan_output_path)
     print(f"DBSCAN results saved to {dbscan_output_path}")
-    
-    # Save main results with cluster IDs
-    bbox_output_path = os.path.join(output_dir, 'bbox_results.csv')
-    export_to_csv(bbox_results, bbox_output_path)
-    print(f"Bounding box results saved to {bbox_output_path}")
     
 if __name__ == "__main__":
     main()

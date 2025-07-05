@@ -31,9 +31,9 @@ if __name__ == "__main__":
     )
 
     regions = [
-        # "Partido de La Plata, Buenos Aires, Argentina",
+        "Partido de La Plata, Buenos Aires, Argentina",
         "Partido de Tres de Febrero, Buenos Aires, Argentina",
-        # "Partido de San Isidro, Buenos Aires, Argentina",
+        "Partido de San Isidro, Buenos Aires, Argentina"
     ]
     region_gdf = find_region(regions)
     mask = region_gdf.union_all()
