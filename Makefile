@@ -1,4 +1,4 @@
-.PHONY: panos unify plots
+.PHONY: panos unify plots run_regions
 
 panos:
 	@echo "Running panos script..."
@@ -14,3 +14,8 @@ plots:
 	@echo "Running plot generation..."
 	@poetry run python -m scripts.plots
 	@echo "Plot generation completed. Check data/plots directory for output files."
+
+run_regions:
+	@echo "Running region processing..."
+	@poetry run python -m scripts.run_regions
+	@echo "Region processing completed. Check data/regions directory for output files."

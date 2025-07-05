@@ -13,6 +13,7 @@ from shapely.ops import transform
 import pyproj
 from typing import List, Union, Optional
 from shapely import wkt
+from tqdm import tqdm
 
 def load_mask(wkt_text):
     """

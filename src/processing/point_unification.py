@@ -9,6 +9,7 @@ import geopandas as gpd
 from typing import Union
 from sklearn.cluster import DBSCAN
 from tqdm import tqdm
+import numpy as np
 
 from src.core.panorama import PanoramaCollection
 

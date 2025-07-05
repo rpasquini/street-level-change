@@ -112,7 +112,7 @@ def load_panorama_collection(file_path: str) -> PanoramaCollection:
     return PanoramaCollection.from_geodataframe(gdf)
 
 
-def load_from_csv(file_path: str) -> pd.DataFrame:
+def load_from_csv(file_path: str) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
     """
     Load data from a CSV file.
     
@@ -123,8 +123,12 @@ def load_from_csv(file_path: str) -> pd.DataFrame:
         
     Returns
     -------
-    pd.DataFrame
-        DataFrame with loaded data
+    Union[pd.DataFrame, gpd.GeoDataFrame]
+        DataFrame or GeoDataFrame with loaded data
     """
     print(f"Loading data from {file_path}")
-    return pd.read_csv(file_path)
+    data = pd.read_csv(file_path)
+    if "geometry" in data.columns:
+        data["geometry"] = data["geometry"].apply(wkt.loads)
+        return gpd.GeoDataFrame(data, geometry="geometry", crs="EPSG:4326")
+    return data
