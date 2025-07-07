@@ -120,16 +120,6 @@ def evaluate_compactness(
         - avg_distance (meters)
         - max_distance (meters)
     """
-    def haversine_distance(lat1, lon1, lat2, lon2):
-        from math import radians, sin, cos, sqrt, atan2
-        R = 6371000  # meters
-        lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
-        dlat = lat2 - lat1
-        dlon = lon2 - lon1
-        a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
-        c = 2 * atan2(sqrt(a), sqrt(1 - a))
-        return R * c
-
     results = []
 
     for cluster_id, group in gdf.groupby(cluster_col):
@@ -157,3 +147,71 @@ def evaluate_compactness(
         })
 
     return pd.DataFrame(results)
+
+def spatial_silhouette_score(
+    gdf: gpd.GeoDataFrame,
+    cluster_col: str = "cluster_id"
+) -> pd.DataFrame:
+    """
+    Computes a spatial silhouette-like score for each point and cluster.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        GeoDataFrame with Point geometries and a 'cluster_id' column.
+    cluster_col : str, default="cluster_id"
+        Column name that contains the cluster ID.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with:
+        - pano_id (or index)
+        - cluster_id
+        - a (intra-cluster distance to own centroid)
+        - b (nearest other-cluster centroid distance)
+        - silhouette_score
+    """
+    if 'geometry' not in gdf.columns:
+        raise ValueError("GeoDataFrame must contain 'geometry' column with Point geometries.")
+    if cluster_col not in gdf.columns:
+        raise ValueError(f"GeoDataFrame must contain '{cluster_col}' column.")
+
+    gdf = gdf.copy()
+
+    # Compute centroids of each cluster
+    centroids = gdf.groupby(cluster_col).geometry.apply(
+        lambda geoms: Point(geoms.x.mean(), geoms.y.mean())
+    ).to_dict()
+
+    results = []
+
+    for idx, row in gdf.iterrows():
+        cluster_id = row[cluster_col]
+        lat = row.geometry.y
+        lon = row.geometry.x
+
+        # a: distance to own cluster centroid
+        own_centroid = centroids[cluster_id]
+        a = haversine_distance(lat, lon, own_centroid.y, own_centroid.x)
+
+        # b: distance to nearest other cluster centroid
+        b = float("inf")
+        for other_id, centroid in centroids.items():
+            if other_id == cluster_id:
+                continue
+            d = haversine_distance(lat, lon, centroid.y, centroid.x)
+            if d < b:
+                b = d
+
+        s = (b - a) / max(a, b) if max(a, b) > 0 else 0
+
+        results.append({
+            "index": idx,
+            cluster_col: cluster_id,
+            "a_distance": a,
+            "b_distance": b,
+            "silhouette_score": s
+        })
+
+    return pd.DataFrame(results).set_index("index")
