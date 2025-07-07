@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Optional, List, Dict, Union, Any, Tuple
 import pandas as pd
 import geopandas as gpd
-from shapely.geometry import Point
+from shapely.geometry import Point, Polygon, MultiPolygon
 
 
 class Panorama:
@@ -205,6 +205,13 @@ class PanoramaCollection:
         filtered = [p for p in self.panoramas if predicate(p)]
         return PanoramaCollection(filtered)
     
+    def clean(self, boundary: Union[gpd.GeoDataFrame, Polygon, MultiPolygon]):
+        if isinstance(boundary, gpd.GeoDataFrame):
+            boundary = boundary.union_all()
+
+        gdf = self.to_geodataframe()
+        return gdf[gdf.intersects(boundary)]
+
     def to_dataframe(self) -> pd.DataFrame:
         """
         Convert the collection to a pandas DataFrame.

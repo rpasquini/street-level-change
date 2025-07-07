@@ -49,18 +49,6 @@ def main():
 
     print(f"Visualization plots saved to {output_dir}")
     
-    # Create interactive map if requested
-    create_interactive = False
-    if create_interactive:
-        from src.visualization.interactive_plotting import create_cluster_map, save_map
-        
-        # Create interactive map with DBSCAN clusters
-        if 'location_id' in panos_gdf.columns:
-            m = create_cluster_map(panos_gdf, cluster_column='location_id')
-            interactive_path = os.path.join(output_dir, 'interactive_map.html')
-            save_map(m, interactive_path)
-            print(f"Interactive map saved to {interactive_path}")
-
 
 if __name__ == "__main__":
     main()
