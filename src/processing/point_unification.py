@@ -14,49 +14,50 @@ from src.core.panorama import PanoramaCollection
 from src.core.geo_utils import haversine_distance
 
 def unify_points(
-    gdf: Union[gpd.GeoDataFrame, PanoramaCollection],
-    eps: float = 0.000045, # 5 meters at the equator
+    gdf: Union[gpd.GeoDataFrame, 'PanoramaCollection'],
+    eps: float = 5,  # in meters
     min_samples: int = 1,
+    projected_crs: str = "EPSG:3857"  # can be set to UTM if needed
 ) -> gpd.GeoDataFrame:
     """
-    Unify points using DBSCAN clustering.
+    Unify points using DBSCAN clustering with distance in meters.
     
     Parameters
     ----------
-    gdf : gpd.GeoDataFrame
+    gdf : gpd.GeoDataFrame or PanoramaCollection
         GeoDataFrame with points to unify
-    eps : float, default=0.000045
-        Maximum distance between points in a cluster
+    eps : float, default=5
+        Maximum distance between points in a cluster, in meters
     min_samples : int, default=1
         Minimum number of points to form a cluster
+    projected_crs : str, default="EPSG:3857"
+        Projected CRS used to measure distance in meters
         
     Returns
     -------
     gpd.GeoDataFrame
-        GeoDataFrame with unified points
+        GeoDataFrame with unified points (cluster_id column)
     """
     if isinstance(gdf, PanoramaCollection):
         gdf = gdf.to_geodataframe()
+
+    # Ensure CRS is set to EPSG:4326 before projecting
+    if gdf.crs is None:
+        gdf = gdf.set_crs("EPSG:4326")
+    elif gdf.crs.to_epsg() != 4326:
+        gdf = gdf.to_crs("EPSG:4326")
     
-    # Make a copy to avoid modifying the original
-    result = gdf.copy()
-    
-    # Ensure the GeoDataFrame has a proper CRS
-    if result.crs is None:
-        result.set_crs(epsg=4326, inplace=True)
-    elif result.crs != "EPSG:4326":
-        result = result.to_crs(epsg=4326)
-    
-    # Extract coordinates for clustering
-    coords = np.array([(p.x, p.y) for p in result.geometry])
-    
-    # Apply DBSCAN clustering
+    # Project to a metric CRS (for distance-based clustering)
+    gdf_proj = gdf.to_crs(projected_crs)
+
+    # Extract coordinates in meters
+    coords = np.array([(p.x, p.y) for p in gdf_proj.geometry])
+
+    # Apply DBSCAN in projected space (meters)
     db = DBSCAN(eps=eps, min_samples=min_samples).fit(coords)
-    
-    # Add cluster labels to the GeoDataFrame
-    result['cluster_id'] = db.labels_
-    
-    return result
+    gdf["cluster_id"] = db.labels_
+
+    return gdf
 
 def compute_cluster_centroids(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """

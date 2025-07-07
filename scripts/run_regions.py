@@ -193,7 +193,7 @@ def run_region(region_slug: str, region_osm: str):
     dist_points_grid = 50
 
     # DBSCAN parameters
-    dbscan_eps = 0.000045  # 5 meters at the equator
+    dbscan_eps = 5  # 5 meters at the equator
     dbscan_min_samples = 1
 
     # Centroid buffer distance in meters
