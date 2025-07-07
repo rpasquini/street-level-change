@@ -8,11 +8,10 @@ different clustering methods, including H3, DBSCAN, and bounding box.
 import geopandas as gpd
 from typing import Union
 from sklearn.cluster import DBSCAN
-from tqdm import tqdm
 import numpy as np
 
 from src.core.panorama import PanoramaCollection
-
+from src.core.geo_utils import haversine_distance
 
 def unify_points(
     gdf: Union[gpd.GeoDataFrame, PanoramaCollection],
@@ -95,3 +94,66 @@ def compute_cluster_centroids(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     }, geometry='geometry', crs=gdf.crs)
 
     return result
+
+
+def evaluate_compactness(
+    gdf: gpd.GeoDataFrame,
+    cluster_col: str = "cluster_id"
+) -> pd.DataFrame:
+    """
+    Evaluate clustering compactness by computing the average and maximum
+    haversine distance from each point to its cluster centroid.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        GeoDataFrame with Point geometries and a cluster column.
+    cluster_col : str, default="cluster_id"
+        Name of the column identifying cluster membership.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with one row per cluster:
+        - cluster_id
+        - point_count
+        - avg_distance (meters)
+        - max_distance (meters)
+    """
+    def haversine_distance(lat1, lon1, lat2, lon2):
+        from math import radians, sin, cos, sqrt, atan2
+        R = 6371000  # meters
+        lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+        a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
+        c = 2 * atan2(sqrt(a), sqrt(1 - a))
+        return R * c
+
+    results = []
+
+    for cluster_id, group in gdf.groupby(cluster_col):
+        if len(group) <= 1:
+            continue  # skip singletons or noise
+
+        lats = group.geometry.y.values
+        lons = group.geometry.x.values
+
+        # Compute centroid of cluster
+        centroid_lat = lats.mean()
+        centroid_lon = lons.mean()
+
+        # Compute distances from each point to centroid
+        distances = [
+            haversine_distance(lat, lon, centroid_lat, centroid_lon)
+            for lat, lon in zip(lats, lons)
+        ]
+
+        results.append({
+            "cluster_id": cluster_id,
+            "point_count": len(group),
+            "avg_distance": sum(distances) / len(distances),
+            "max_distance": max(distances)
+        })
+
+    return pd.DataFrame(results)
