@@ -11,7 +11,7 @@ import geopandas as gpd
 from tqdm import tqdm
 
 from src.core.panorama import Panorama, PanoramaCollection
-
+from PIL import Image
 
 def search_panoramas(
     lat: float, 
@@ -119,17 +119,17 @@ def get_panoramas_for_points(
 
 
 def download_panorama_image(
-    panorama: Panorama,
+    pano_id: str,
     zoom: int = 3,
     output_path: Optional[str] = None
-) -> Optional[str]:
+) -> Optional[Image]:
     """
     Download an image for a panorama.
     
     Parameters
     ----------
-    panorama : Panorama
-        Panorama object
+    pano_id : str
+        Panorama ID
     zoom : int, default=3
         Zoom level (0-5, where 5 is highest resolution)
     output_path : Optional[str], default=None
@@ -138,17 +138,19 @@ def download_panorama_image(
     Returns
     -------
     Optional[str]
-        Path to the saved image if output_path is provided, otherwise None
+        Image object if successful, otherwise None
     """
-    from streetview import download_panorama
+    from streetview import get_panorama
     
     try:
-        download_panorama(
-            panorama.pano_id,
+        pano = get_panorama(
+            pano_id,
             zoom=zoom,
-            save_path=output_path
         )
-        return output_path
     except Exception as e:
-        print(f"Error downloading panorama {panorama.pano_id}: {e}")
+        print(f"Error downloading panorama {pano_id}: {e}")
         return None
+
+    if output_path:
+        pano.save(output_path)
+    return pano

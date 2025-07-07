@@ -6,10 +6,12 @@ different clustering methods, including H3, DBSCAN, and bounding box.
 """
 
 import geopandas as gpd
+import pandas as pd
 from typing import Union
 from sklearn.cluster import DBSCAN
 import numpy as np
-
+from shapely.geometry import Point
+from tqdm import tqdm
 from src.core.panorama import PanoramaCollection
 from src.core.geo_utils import haversine_distance
 
@@ -187,7 +189,7 @@ def spatial_silhouette_score(
 
     results = []
 
-    for idx, row in gdf.iterrows():
+    for idx, row in tqdm(gdf.iterrows(), total=len(gdf), desc="Computing silhouette scores"):
         cluster_id = row[cluster_col]
         lat = row.geometry.y
         lon = row.geometry.x

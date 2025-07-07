@@ -2,15 +2,19 @@ import os
 import geopandas as gpd
 from src.data_handlers.exporters import export_to_csv
 from src.processing.point_unification import (
+    evaluate_compactness,
+    spatial_silhouette_score,
     unify_points,
     compute_cluster_centroids,
 )
 from src.core.geo_utils import create_point_grid_from_gdf
-from src.api.streetview import get_panoramas_for_points
+from src.api.streetview import get_panoramas_for_points, download_panorama_image
 from src.core.geo_utils import buffer_region
 from src.data_handlers.loaders import load_from_csv, load_panorama_data
 from src.core.geo_utils import find_region
+from src.visualization.static_plotting import plot_date_distribution
 
+import pandas as pd
 
 def process_region(region_osm: str, buffer_dist: int, data_dir: str):
     # Polígonos del RENABAP
@@ -138,6 +142,56 @@ def join_barrios(
         joined = load_from_csv(joined_path)
     return joined
 
+def evaluate_clustering(
+    gdf: gpd.GeoDataFrame,
+    start: int,
+    end: int,
+    step: int,
+    data_dir: str,
+):
+    print(f"\nEvaluating clustering with eps from {start} to {end} with step {step}")
+    from tqdm import tqdm
+    output = []
+    for eps in tqdm(range(start, end + 1, step), total=(end - start) // step):
+        dbscan_results = unify_points(gdf, eps=eps)
+
+        compactness = evaluate_compactness(dbscan_results)
+        compactness['eps'] = str(eps)
+
+        output.append(compactness)
+    
+    output = pd.concat(output)
+    output.to_csv(os.path.join(data_dir, "clustering_evaluation.csv"))
+
+    return output 
+
+def evaluate_clustering_full(
+    gdf: gpd.GeoDataFrame,
+    start: int,
+    end: int,
+    step: int,
+    data_dir: str,
+):
+    print(f"\nEvaluating clustering with eps from {start} to {end} with step {step}")
+    from tqdm import tqdm
+    output = []
+    for eps in tqdm(range(start, end + 1, step), total=(end - start) // step):
+        dbscan_results = unify_points(gdf, eps=eps)
+        scores = spatial_silhouette_score(dbscan_results)
+        scores['eps'] = str(eps)
+
+        compactness = evaluate_compactness(dbscan_results)
+        compactness['eps'] = str(eps)
+
+        final = compactness.set_index(
+            ["cluster_id", "eps"]
+        ).join(scores.set_index(["cluster_id", "eps"]))
+        output.append(final)
+    
+    output = pd.concat(output)
+    output.to_csv(os.path.join(data_dir, "clustering_evaluation.csv"))
+
+    return output
 
 def calculate_coverage_area(
     centroid_buffer: int,
@@ -204,9 +258,15 @@ def run_region(region_slug: str, region_osm: str):
     )
     panoramas = process_panos(renabap_buffered, dist_points_grid, output_dir)
 
+    plot_date_distribution(panoramas, output_dir=output_dir)
+
+    download_panorama_image("pWcvnuI0aGwGObCdcy2avg", output_path=os.path.join(output_dir, "panorama.jpg"))
+
     dbscan_results, centroids = process_dbscan(
         panoramas, dbscan_eps, dbscan_min_samples, output_dir
     )
+
+    # clustering_eval = evaluate_clustering(panoramas, 5, 10, 1, output_dir)
 
     joined = join_barrios(dbscan_results, renabap_intersected, output_dir)
 
@@ -218,9 +278,7 @@ def run_region(region_slug: str, region_osm: str):
         output_dir,
     )
 
-    return joined, coverage
-
 
 if __name__ == "__main__":
     osm_region = "Partido de Tres de Febrero, Buenos Aires, Argentina"
-    joined, coverage = run_region("tresdefebrero", osm_region)
+    run_region("tresdefebrero", osm_region)
