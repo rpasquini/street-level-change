@@ -1,5 +1,16 @@
+"""
+Pipeline components for Street Level Change Detection.
+
+This module provides individual processing components that can be used
+in workflows for processing street-level imagery data.
+"""
+
 import os
 import geopandas as gpd
+import pandas as pd
+from typing import Tuple, Optional
+from tqdm import tqdm
+
 from src.data_handlers.exporters import export_to_csv
 from src.processing.point_unification import (
     evaluate_compactness,
@@ -14,9 +25,25 @@ from src.data_handlers.loaders import load_from_csv, load_panorama_data
 from src.core.geo_utils import find_region
 from src.visualization.static_plotting import plot_date_distribution
 
-import pandas as pd
 
-def process_region(region_osm: str, buffer_dist: int, data_dir: str):
+def process_region(region_osm: str, buffer_dist: int, data_dir: str) -> Tuple[gpd.GeoDataFrame, gpd.GeoSeries, gpd.GeoDataFrame, gpd.GeoDataFrame]:
+    """
+    Process a region by finding its boundaries and intersecting with RENABAP data.
+    
+    Parameters
+    ----------
+    region_osm : str
+        OSM region name to process
+    buffer_dist : int
+        Buffer distance in meters
+    data_dir : str
+        Directory to save output files
+        
+    Returns
+    -------
+    Tuple[gpd.GeoDataFrame, gpd.GeoSeries, gpd.GeoDataFrame, gpd.GeoDataFrame]
+        Region GeoDataFrame, mask, intersected RENABAP data, and buffered RENABAP data
+    """
     # Polígonos del RENABAP
     # https://datos.gob.ar/dataset/habitat-registro-nacional-barrios-populares
     renabap = gpd.read_file(
@@ -59,7 +86,24 @@ def process_region(region_osm: str, buffer_dist: int, data_dir: str):
 
 def process_panos(
     renabap_buffered: gpd.GeoDataFrame, dist_points_grid: int, data_dir: str
-):
+) -> gpd.GeoDataFrame:
+    """
+    Process panoramas by creating a point grid and fetching panorama data.
+    
+    Parameters
+    ----------
+    renabap_buffered : gpd.GeoDataFrame
+        Buffered RENABAP data
+    dist_points_grid : int
+        Distance between points in the grid
+    data_dir : str
+        Directory to save output files
+        
+    Returns
+    -------
+    gpd.GeoDataFrame
+        Panorama data as a GeoDataFrame
+    """
     panos_path = os.path.join(data_dir, "panos.csv")
     if not os.path.exists(panos_path):
         points_gdf = create_point_grid_from_gdf(
@@ -83,7 +127,26 @@ def process_dbscan(
     dbscan_eps: float,
     dbscan_min_samples: int,
     data_dir: str,
-):
+) -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
+    """
+    Process panorama data using DBSCAN clustering.
+    
+    Parameters
+    ----------
+    panoramas : gpd.GeoDataFrame
+        Panorama data
+    dbscan_eps : float
+        DBSCAN epsilon parameter
+    dbscan_min_samples : int
+        DBSCAN minimum samples parameter
+    data_dir : str
+        Directory to save output files
+        
+    Returns
+    -------
+    Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]
+        DBSCAN results and centroids
+    """
     dbscan_output_path = os.path.join(data_dir, "dbscan_results.csv")
     dbscan_centroids_path = os.path.join(data_dir, "dbscan_centroids.csv")
 
@@ -120,27 +183,37 @@ def join_barrios(
     panos: gpd.GeoDataFrame,
     renabap_intersected: gpd.GeoDataFrame,
     data_dir: str,
-):
-    joined_path = os.path.join(data_dir, "joined_nearest_barrio.csv")
+) -> gpd.GeoDataFrame:
+    """
+    Join panorama data with RENABAP barrio data.
+    
+    Parameters
+    ----------
+    panos : gpd.GeoDataFrame
+        Panorama data
+    renabap_intersected : gpd.GeoDataFrame
+        Intersected RENABAP data
+    data_dir : str
+        Directory to save output files
+        
+    Returns
+    -------
+    gpd.GeoDataFrame
+        Joined data
+    """
+    joined_path = os.path.join(data_dir, "joined.csv")
     if not os.path.exists(joined_path):
-        joined = (
-            panos.to_crs(3857)
-            .sjoin_nearest(
-                renabap_intersected[["id_renabap", "geometry"]]
-                .set_index("id_renabap")
-                .to_crs(3857),
-                how="left",
-            )
-            .to_crs(4326)
+        # Spatial join with renabap
+        joined = gpd.sjoin(
+            panos, renabap_intersected, how="left", predicate="within"
         )
-
-        joined["inside_barrio"] = joined.geometry.within(
-            renabap_intersected.union_all()
-        ).astype(int)
+        # Save joined data
         export_to_csv(joined, joined_path)
     else:
         joined = load_from_csv(joined_path)
+
     return joined
+
 
 def evaluate_clustering(
     gdf: gpd.GeoDataFrame,
@@ -148,13 +221,32 @@ def evaluate_clustering(
     end: int,
     step: int,
     data_dir: str,
-):
+) -> pd.DataFrame:
+    """
+    Evaluate clustering with different parameters.
+    
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        Input GeoDataFrame
+    start : int
+        Start value for epsilon
+    end : int
+        End value for epsilon
+    step : int
+        Step size for epsilon
+    data_dir : str
+        Directory to save output files
+        
+    Returns
+    -------
+    pd.DataFrame
+        Evaluation results
+    """
     print(f"\nEvaluating clustering with eps from {start} to {end} with step {step}")
-    from tqdm import tqdm
     output = []
-    for eps in tqdm(range(start, end + 1, step), total=(end - start) // step):
+    for eps in range(start, end + 1, step):
         dbscan_results = unify_points(gdf, eps=eps)
-
         compactness = evaluate_compactness(dbscan_results)
         compactness['eps'] = str(eps)
 
@@ -165,13 +257,35 @@ def evaluate_clustering(
 
     return output 
 
+
 def evaluate_clustering_full(
     gdf: gpd.GeoDataFrame,
     start: int,
     end: int,
     step: int,
     data_dir: str,
-):
+) -> pd.DataFrame:
+    """
+    Perform full clustering evaluation with silhouette scores.
+    
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        Input GeoDataFrame
+    start : int
+        Start value for epsilon
+    end : int
+        End value for epsilon
+    step : int
+        Step size for epsilon
+    data_dir : str
+        Directory to save output files
+        
+    Returns
+    -------
+    pd.DataFrame
+        Full evaluation results
+    """
     print(f"\nEvaluating clustering with eps from {start} to {end} with step {step}")
     from tqdm import tqdm
     output = []
@@ -193,19 +307,55 @@ def evaluate_clustering_full(
 
     return output
 
+
 def calculate_coverage_area(
     centroid_buffer: int,
     centroids: gpd.GeoDataFrame,
     renabap_intersected: gpd.GeoDataFrame,
     renabap_buffered: gpd.GeoDataFrame,
     data_dir: str,
-):
+) -> pd.DataFrame:
+    """
+    Calculate coverage area metrics.
+    
+    Parameters
+    ----------
+    centroid_buffer : int
+        Buffer distance for centroids
+    centroids : gpd.GeoDataFrame
+        Centroids data
+    renabap_intersected : gpd.GeoDataFrame
+        Intersected RENABAP data
+    renabap_buffered : gpd.GeoDataFrame
+        Buffered RENABAP data
+    data_dir : str
+        Directory to save output files
+        
+    Returns
+    -------
+    pd.DataFrame
+        Coverage area metrics
+    """
     coverage_path = os.path.join(data_dir, "coverage_areas.csv")
 
     def calculate_area_per_region(
         regions: gpd.GeoDataFrame, buffered_centroids: gpd.GeoDataFrame
     ):
-
+        """
+        Calculate area coverage per region.
+        
+        Parameters
+        ----------
+        regions : gpd.GeoDataFrame
+            Region data
+        buffered_centroids : gpd.GeoDataFrame
+            Buffered centroids
+            
+        Returns
+        -------
+        gpd.GeoDataFrame
+            Regions with coverage area metrics
+        """
         regions = regions.to_crs(3857)
         buffered_centroids = buffered_centroids.to_crs(3857)
         regions["original_region_area"] = regions.area
@@ -235,50 +385,3 @@ def calculate_coverage_area(
         coverage = load_from_csv(coverage_path)
 
     return coverage
-
-
-def run_region(region_slug: str, region_osm: str):
-    output_dir = os.path.join("./data", region_slug)
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Polygons buffer distance in meters
-    buffer_dist = 500
-    # Distance between points to point-gridding polygon buffers
-    dist_points_grid = 50
-
-    # DBSCAN parameters
-    dbscan_eps = 5
-    dbscan_min_samples = 1
-
-    # Centroid buffer distance in meters
-    centroid_buffer = 5
-
-    region_gdf, mask, renabap_intersected, renabap_buffered = process_region(
-        region_osm, buffer_dist, output_dir
-    )
-    panoramas = process_panos(renabap_buffered, dist_points_grid, output_dir)
-
-    plot_date_distribution(panoramas, output_dir=output_dir)
-
-    download_panorama_image("pWcvnuI0aGwGObCdcy2avg", output_path=os.path.join(output_dir, "panorama.jpg"))
-
-    dbscan_results, centroids = process_dbscan(
-        panoramas, dbscan_eps, dbscan_min_samples, output_dir
-    )
-
-    # clustering_eval = evaluate_clustering(panoramas, 5, 10, 1, output_dir)
-
-    joined = join_barrios(dbscan_results, renabap_intersected, output_dir)
-
-    coverage = calculate_coverage_area(
-        centroid_buffer,
-        centroids,
-        renabap_intersected,
-        renabap_buffered,
-        output_dir,
-    )
-
-
-if __name__ == "__main__":
-    osm_region = "Partido de Tres de Febrero, Buenos Aires, Argentina"
-    run_region("tresdefebrero", osm_region)
