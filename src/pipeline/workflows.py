@@ -75,7 +75,7 @@ def run_region(region_slug: str, region_osm: str) -> None:
     )
 
     # Optional: Evaluate clustering
-    clustering_eval = evaluate_clustering_full(panoramas, 5, 10, 1, output_dir)
+    # clustering_eval = evaluate_clustering_full(panoramas, 5, 10, 1, output_dir)
 
     # Join with barrios data
     joined = join_barrios(dbscan_results, renabap_intersected, output_dir)

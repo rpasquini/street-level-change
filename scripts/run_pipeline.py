@@ -12,10 +12,8 @@ from src.pipeline import run_region
 def main():
     """Run the region analysis using the pipeline module."""
     # Example region to process
-    # region_slug = "tresdefebrero"
-    # region_osm = "Partido de Tres de Febrero, Buenos Aires, Argentina"
-    region_slug = 'arrecifes'
-    region_osm = "arrecifes, buenos aires, argentina"
+    region_slug = "tresdefebrero"
+    region_osm = "Partido de Tres de Febrero, Buenos Aires, Argentina"
     
     print(f"Processing region: {region_slug} ({region_osm})")
     run_region(region_slug, region_osm)
