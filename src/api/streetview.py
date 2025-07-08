@@ -199,4 +199,29 @@ def download_streetview_images(
         except Exception as e:
             print(f"Error downloading streetview images for {pano_id}: {e}")
             
-            
+def get_panorama_metadata(
+    pano_id: str,
+    api_key: str,
+) -> Dict[str, Any]:
+    """
+    Get metadata for a panorama.
+
+    Quota: This function doesn't use up any quota or charge on your API_KEY.
+
+    Endpoint documented at:
+    https://developers.google.com/maps/documentation/streetview/metadata
+    
+    Parameters
+    ----------
+    pano_id : str
+        Panorama ID
+    api_key : str
+        Google Street View API key
+    
+    Returns
+    -------
+    Dict[str, Any]
+        Metadata for the panorama
+    """
+    from streetview import get_panorama_meta
+    return dict(get_panorama_meta(pano_id, api_key))
