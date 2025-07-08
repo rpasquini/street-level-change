@@ -15,7 +15,8 @@ from .components import (
     process_panos,
     process_dbscan,
     join_barrios,
-    calculate_coverage_area
+    calculate_coverage_area,
+    evaluate_clustering_full
 )
 from src.visualization.static_plotting import plot_date_distribution
 from src.api.streetview import download_panorama_image
@@ -66,7 +67,7 @@ def run_region(region_slug: str, region_osm: str) -> None:
     plot_date_distribution(panoramas, output_dir=output_dir)
 
     # Download a sample panorama image
-    download_panorama_image("pWcvnuI0aGwGObCdcy2avg", output_path=os.path.join(output_dir, "panorama.jpg"))
+    # download_panorama_image("pWcvnuI0aGwGObCdcy2avg", output_path=os.path.join(output_dir, "panorama.jpg"))
 
     # Process DBSCAN clustering
     dbscan_results, centroids = process_dbscan(
@@ -74,7 +75,7 @@ def run_region(region_slug: str, region_osm: str) -> None:
     )
 
     # Optional: Evaluate clustering
-    # clustering_eval = evaluate_clustering(panoramas, 5, 10, 1, output_dir)
+    clustering_eval = evaluate_clustering_full(panoramas, 5, 10, 1, output_dir)
 
     # Join with barrios data
     joined = join_barrios(dbscan_results, renabap_intersected, output_dir)

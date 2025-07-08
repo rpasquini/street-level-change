@@ -8,7 +8,7 @@ in workflows for processing street-level imagery data.
 import os
 import geopandas as gpd
 import pandas as pd
-from typing import Tuple, Optional
+from typing import Tuple
 from tqdm import tqdm
 
 from src.data_handlers.exporters import export_to_csv
@@ -19,11 +19,10 @@ from src.processing.point_unification import (
     compute_cluster_centroids,
 )
 from src.core.geo_utils import create_point_grid_from_gdf
-from src.api.streetview import get_panoramas_for_points, download_panorama_image
+from src.api.streetview import get_panoramas_for_points
 from src.core.geo_utils import buffer_region
 from src.data_handlers.loaders import load_from_csv, load_panorama_data
 from src.core.geo_utils import find_region
-from src.visualization.static_plotting import plot_date_distribution
 
 
 def process_region(region_osm: str, buffer_dist: int, data_dir: str) -> Tuple[gpd.GeoDataFrame, gpd.GeoSeries, gpd.GeoDataFrame, gpd.GeoDataFrame]:

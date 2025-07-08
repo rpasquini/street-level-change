@@ -151,12 +151,54 @@ def evaluate_compactness(
 
     return pd.DataFrame(results)
 
+def _process_point_silhouette(point_data):
+    """
+    Process silhouette score for a single point (used for parallel processing).
+    
+    Parameters
+    ----------
+    point_data : tuple
+        Tuple containing (index, lat, lon, cluster_id, centroids_dict, cluster_col)
+        
+    Returns
+    -------
+    dict
+        Dictionary with silhouette score results for this point
+    """
+    idx, lat, lon, cluster_id, centroids, cluster_col = point_data
+    
+    # a: distance to own cluster centroid
+    own_centroid = centroids[cluster_id]
+    a = haversine_distance(lat, lon, own_centroid.y, own_centroid.x)
+    
+    # b: distance to nearest other cluster centroid
+    b = float("inf")
+    for other_id, centroid in centroids.items():
+        if other_id == cluster_id:
+            continue
+        d = haversine_distance(lat, lon, centroid.y, centroid.x)
+        if d < b:
+            b = d
+    
+    # Calculate silhouette score
+    s = (b - a) / max(a, b) if max(a, b) > 0 else 0
+    
+    return {
+        "index": idx,
+        cluster_col: cluster_id,
+        "a_distance": a,
+        "b_distance": b,
+        "silhouette_score": s
+    }
+
+
 def spatial_silhouette_score(
     gdf: gpd.GeoDataFrame,
-    cluster_col: str = "cluster_id"
+    cluster_col: str = "cluster_id",
+    max_workers: int = None
 ) -> pd.DataFrame:
     """
-    Computes a spatial silhouette-like score for each point and cluster.
+    Computes a spatial silhouette-like score for each point and cluster using parallel processing.
 
     Parameters
     ----------
@@ -164,6 +206,9 @@ def spatial_silhouette_score(
         GeoDataFrame with Point geometries and a 'cluster_id' column.
     cluster_col : str, default="cluster_id"
         Column name that contains the cluster ID.
+    max_workers : int, default=None
+        Maximum number of worker processes to use for parallel processing.
+        If None, it will use the number of processors on the machine.
 
     Returns
     -------
@@ -175,6 +220,8 @@ def spatial_silhouette_score(
         - b (nearest other-cluster centroid distance)
         - silhouette_score
     """
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+    
     if 'geometry' not in gdf.columns:
         raise ValueError("GeoDataFrame must contain 'geometry' column with Point geometries.")
     if cluster_col not in gdf.columns:
@@ -186,35 +233,21 @@ def spatial_silhouette_score(
     centroids = gdf.groupby(cluster_col).geometry.apply(
         lambda geoms: Point(geoms.x.mean(), geoms.y.mean())
     ).to_dict()
-
+    
+    # Prepare data for parallel processing
+    point_data = [
+        (idx, row.geometry.y, row.geometry.x, row[cluster_col], centroids, cluster_col)
+        for idx, row in gdf.iterrows()
+    ]
+    
     results = []
-
-    for idx, row in tqdm(gdf.iterrows(), total=len(gdf), desc="Computing silhouette scores"):
-        cluster_id = row[cluster_col]
-        lat = row.geometry.y
-        lon = row.geometry.x
-
-        # a: distance to own cluster centroid
-        own_centroid = centroids[cluster_id]
-        a = haversine_distance(lat, lon, own_centroid.y, own_centroid.x)
-
-        # b: distance to nearest other cluster centroid
-        b = float("inf")
-        for other_id, centroid in centroids.items():
-            if other_id == cluster_id:
-                continue
-            d = haversine_distance(lat, lon, centroid.y, centroid.x)
-            if d < b:
-                b = d
-
-        s = (b - a) / max(a, b) if max(a, b) > 0 else 0
-
-        results.append({
-            "index": idx,
-            cluster_col: cluster_id,
-            "a_distance": a,
-            "b_distance": b,
-            "silhouette_score": s
-        })
-
+    
+    # Process points in parallel
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(_process_point_silhouette, data) for data in point_data]
+        
+        # Collect results as they complete
+        for future in tqdm(as_completed(futures), total=len(futures), desc="Computing silhouette scores"):
+            results.append(future.result())
+    
     return pd.DataFrame(results).set_index("index")
