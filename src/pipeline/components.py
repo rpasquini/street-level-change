@@ -72,10 +72,7 @@ def process_region(region_osm: str, buffer_dist: int, data_dir: str) -> Tuple[gp
 
     if not os.path.exists(renabap_buffered_path):
         # Save intersected renabap buffers
-        renabap_buffered = buffer_region(renabap_intersected, buffer_dist)
-        renabap_buffered = renabap_buffered.overlay(
-            renabap_intersected, how="difference"
-        )
+        renabap_buffered = buffer_region(renabap_intersected, buffer_dist, exclude_original=True)
         export_to_csv(renabap_buffered, renabap_buffered_path)
     else:
         renabap_buffered = load_from_csv(renabap_buffered_path)
@@ -178,13 +175,17 @@ def process_dbscan(
     return dbscan_results, centroids
 
 
-def join_barrios(
+def process_barrios(
     panos: gpd.GeoDataFrame,
     renabap_intersected: gpd.GeoDataFrame,
+    barrio_buffer_dist: int,
     data_dir: str,
 ) -> gpd.GeoDataFrame:
     """
     Join panorama data with RENABAP barrio data.
+    Creates two dummies for each panorama:
+        - inside: 1 if the panorama is inside the barrio, 0 otherwise
+        - inside_buffered: 1 if the panorama is inside a small buffered barrio, 0 otherwise
     
     Parameters
     ----------
@@ -192,6 +193,8 @@ def join_barrios(
         Panorama data
     renabap_intersected : gpd.GeoDataFrame
         Intersected RENABAP data
+    barrio_buffer_dist : int
+        Buffer distance for barrios
     data_dir : str
         Directory to save output files
         
@@ -202,16 +205,25 @@ def join_barrios(
     """
     joined_path = os.path.join(data_dir, "joined.csv")
     if not os.path.exists(joined_path):
-        # Spatial join with renabap
-        joined = gpd.sjoin(
-            panos, renabap_intersected, how="left", predicate="within"
-        )
-        # Save joined data
-        export_to_csv(joined, joined_path)
-    else:
-        joined = load_from_csv(joined_path)
+        renabap_buffered = buffer_region(renabap_intersected, barrio_buffer_dist, exclude_original=True)
+        # Mark pano points as inside or inside_buffered
+        panos['inside'] = panos.within(renabap_intersected.union_all()).astype(int)
+        panos['close'] = panos.within(renabap_buffered.union_all()).astype(int)
+        panos = gpd.sjoin_nearest(
+            panos.to_crs(3857), renabap_intersected[['id_renabap','geometry']].to_crs(3857),
+            how="left", 
+            distance_col="distance"
+        ).to_crs(4326)
 
-    return joined
+        panos["inside_close"] = panos['inside'] + panos["close"]
+
+        panos = panos.rename(columns={"id_renabap": "closest_barrio"})
+        # Save joined data
+        export_to_csv(panos, joined_path)
+    else:
+        panos = load_from_csv(joined_path)
+
+    return panos
 
 
 def evaluate_clustering(
@@ -335,8 +347,8 @@ def calculate_coverage_area(
     pd.DataFrame
         Coverage area metrics
     """
-    coverage_path = os.path.join(data_dir, "coverage_areas.csv")
-
+    coverage_barrio_path = os.path.join(data_dir, "coverage_per_barrio.csv")
+    coverage_area_path = os.path.join(data_dir, "coverage_areas.csv")
     def calculate_area_per_region(
         regions: gpd.GeoDataFrame, buffered_centroids: gpd.GeoDataFrame
     ):
@@ -362,10 +374,12 @@ def calculate_coverage_area(
         regions["coverage_area"] = regions.area / regions["original_region_area"]
         return regions.to_crs(4326)
 
-    if not os.path.exists(coverage_path):
+    if not os.path.exists(coverage_barrio_path):
         centroids["geometry"] = (
             centroids.to_crs(3857).buffer(centroid_buffer).to_crs(4326)
         )
+        if not os.path.exists(coverage_area_path):
+            centroids.to_csv(coverage_area_path)
 
         barrio_coverage = calculate_area_per_region(
             renabap_intersected, centroids
@@ -379,8 +393,8 @@ def calculate_coverage_area(
             .join(buffered_barrio_coverage.set_index("id_renabap").buffered_coverage_area.to_frame())
             .reset_index()
         )
-        coverage.to_csv(coverage_path, index=False)
+        coverage.to_csv(coverage_barrio_path, index=False)
     else:
-        coverage = load_from_csv(coverage_path)
+        coverage = load_from_csv(coverage_barrio_path)
 
     return coverage

@@ -14,7 +14,7 @@ from .components import (
     process_region,
     process_panos,
     process_dbscan,
-    join_barrios,
+    process_barrios,
     calculate_coverage_area,
     evaluate_clustering_full
 )
@@ -61,7 +61,8 @@ def run_region(region_slug: str, region_osm: str) -> None:
     )
     
     # Process panoramas
-    panoramas = process_panos(renabap_buffered, dist_points_grid, output_dir)
+    regions = pd.concat([renabap_intersected, renabap_buffered])
+    panoramas = process_panos(regions, dist_points_grid, output_dir)
 
     # Visualize date distribution
     plot_date_distribution(panoramas, output_dir=output_dir)
@@ -78,7 +79,7 @@ def run_region(region_slug: str, region_osm: str) -> None:
     # clustering_eval = evaluate_clustering_full(panoramas, 5, 10, 1, output_dir)
 
     # Join with barrios data
-    joined = join_barrios(dbscan_results, renabap_intersected, output_dir)
+    joined = process_barrios(dbscan_results, renabap_intersected, barrio_buffer_dist=5, data_dir=output_dir)
 
     # Calculate coverage area metrics
     coverage = calculate_coverage_area(
@@ -86,7 +87,7 @@ def run_region(region_slug: str, region_osm: str) -> None:
         centroids,
         renabap_intersected,
         renabap_buffered,
-        output_dir,
+        data_dir=output_dir,
     )
     
     print(f"Region processing completed for {region_slug}")

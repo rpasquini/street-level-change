@@ -30,7 +30,7 @@ This project is at an early stage, exploring how to obtain panorama points from 
 - The Google Street View API only accepts latitude and longitude points for panorama IDs, not polygons
 - Data quality is challenged by coverage; not all informal areas have Street View imagery
 - Quantifying urban change in these areas is complex
-- Panoramas are not always taken from the exact same location, and not all areas have temporal coverage
+- Panoramas are not always taken from the exact same location
 
 ## Installation
 
@@ -103,9 +103,7 @@ panos = src.sv.get_panos(points)
 
 ### Step 4: Point Unification
 
-Group panorama points based on spatial proximity using either:
-- H3-based hexagon grouping
-- DBSCAN clustering with haversine distance
+Group panorama points based on spatial proximity using DBSCAN clustering with haversine distance
 
 ### Step 5: Generate Plots
 

@@ -9,7 +9,7 @@ from .components import (
     process_region,
     process_panos,
     process_dbscan,
-    join_barrios,
+    process_barrios,
     evaluate_clustering,
     evaluate_clustering_full,
     calculate_coverage_area
@@ -20,7 +20,7 @@ __all__ = [
     'process_region',
     'process_panos',
     'process_dbscan',
-    'join_barrios',
+    'process_barrios',
     'evaluate_clustering',
     'evaluate_clustering_full',
     'calculate_coverage_area'

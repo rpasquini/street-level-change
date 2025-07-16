@@ -229,8 +229,10 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
     return distance
 
 
-def buffer_region(gdf: gpd.GeoDataFrame, buffer_dist: float, 
-                 mask: Optional[gpd.GeoDataFrame] = None) -> gpd.GeoDataFrame:
+def buffer_region(gdf: gpd.GeoDataFrame,
+                  buffer_dist: float,
+                  mask: Optional[gpd.GeoDataFrame] = None,
+                  exclude_original: bool = False) -> gpd.GeoDataFrame:
     """
     Buffer a region by a specified distance in meters.
 
@@ -242,7 +244,8 @@ def buffer_region(gdf: gpd.GeoDataFrame, buffer_dist: float,
         Buffer distance in meters
     mask : Optional[gpd.GeoDataFrame], default=None
         Optional mask to intersect with before buffering
-
+    exclude_original : bool, default=False
+        Whether to exclude the original geometries from the buffered result
     Returns
     -------
     gpd.GeoDataFrame
@@ -258,5 +261,8 @@ def buffer_region(gdf: gpd.GeoDataFrame, buffer_dist: float,
     buffered["geometry"] = (
         buffered.to_crs(3857).buffer(buffer_dist).to_crs(4326)
     )
+    
+    if exclude_original:
+        buffered = buffered.overlay(gdf, how="difference")
     
     return buffered
