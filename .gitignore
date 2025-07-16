@@ -89,3 +89,12 @@ target/
 *.pytest_cache/
 
 site/
+
+# OSM Cache
+cache/
+
+# Data
+data/
+
+# NOTES
+NOTES.md
