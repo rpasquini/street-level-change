@@ -61,4 +61,4 @@ Coverage is determined by calculating the area of intersection between the ReNaB
 ## Contact
 
 - Ricardo Pasquini - [rpasquini@utdt.edu](mailto:rpasquini@utdt.edu)
-- Jeronimo Luza - [jeronimoluza@gmail.com](mailto:jeronimoluza@gmail.com)
+- Jerónimo Luza - [jeronimoluza@gmail.com](mailto:jeronimoluza@gmail.com)
