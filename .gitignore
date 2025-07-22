@@ -98,3 +98,9 @@ data/
 
 # NOTES
 NOTES.md
+
+# STEGO
+STEGO/my_notes/
+STEGO/saved_models/
+STEGO/segmentation_results/
+STEGO/results/
