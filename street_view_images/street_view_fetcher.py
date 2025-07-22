@@ -194,10 +194,10 @@ if __name__ == "__main__":
     panoid = "IRjUkZh19iAqvgNSyqOR_w"
     
     # Create test_images directory if it doesn't exist
-    os.makedirs("test_images", exist_ok=True)
+    os.makedirs("street_view_images/test_images", exist_ok=True)
     
     # Fetch and save specific view using the parameters from the URL
-    output_path = os.path.join("test_images", "buenos_aires_view_2015.jpg")
+    output_path = os.path.join("street_view_images/test_images", "buenos_aires_view_2015.jpg")
     img = fetcher.get_panorama_by_id(
         panoid=panoid,
         heading=134.12,  # From the URL's yaw parameter

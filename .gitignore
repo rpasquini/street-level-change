@@ -104,3 +104,7 @@ STEGO/my_notes/
 STEGO/saved_models/
 STEGO/segmentation_results/
 STEGO/results/
+
+# Street View Images
+street_view_images/segmentation_results/
+street_view_images/test_images/
