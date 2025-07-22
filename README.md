@@ -53,6 +53,18 @@ Finally, the panorama points will be unified using DBSCAN clustering.
 
 Coverage is determined by calculating the area of intersection between the ReNaBaP polygon and the panorama points buffered by 5 meters.
 
+
+
+## Fetching GSV images
+
+```python street_view_images/street_view_fetcher.py```
+
+## Segmentation
+
+```python STEGO/src/segment_street_view.py```
+
+
+
 ## Next Steps & Future Developments
 
 - Downloading Google Street View images for proof-of-concept areas
