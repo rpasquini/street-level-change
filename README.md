@@ -8,7 +8,7 @@ How have informal housing settlement areas changed through time?
 
 ## Project Overview
 
-This project is at an early stage, exploring how to obtain panorama points from Google Street View around informal housing areas from Argentina's ReNaBaP (Registro Nacional de Barrios Populares - National Registry of Popular Neighborhoods).
+This project is at an early stage, exploring how to obtain panorama points from Google Street View around informal housing areas from Argentina's [ReNaBaP](https://www.argentina.gob.ar/obras-publicas/sisu/renabap) (Registro Nacional de Barrios Populares - National Registry of Popular Neighborhoods).
 
 ### Methodology
 
@@ -21,124 +21,44 @@ This project is at an early stage, exploring how to obtain panorama points from 
 
 - Currently focused on ReNaBaP data
 - Methodology tests are being conducted in:
-  - La Plata, Buenos Aires
-  - San Isidro, Buenos Aires
-  - 3 de Febrero, Buenos Aires (Argentina)
-
-### Limitations
-
-- The Google Street View API only accepts latitude and longitude points for panorama IDs, not polygons
-- Data quality is challenged by coverage; not all informal areas have Street View imagery
-- Quantifying urban change in these areas is complex
-- Panoramas are not always taken from the exact same location
-
-## Installation
-
-This project uses Poetry for dependency and environment management:
-
-```bash
-# Install dependencies
-poetry install
-```
+  - La Plata, Buenos Aires, Argentina
+  - San Isidro, Buenos Aires, Argentina
+  - 3 de Febrero, Buenos Aires, Argentina
 
 ## Usage
 
-The project provides a Makefile with commands to run different steps of the workflow:
-
-### Panorama Collection
-
-Executes the panorama collection script that fetches panorama data for specified regions:
+The project provides a Makefile to run the pipeline. The main entry point can be found at `scripts/run_pipeline.py`, where we can set the `region_slug` that will be used to store the results (`data/<region_slug>`), and the `region_osm` that will be used to mask the ReNaBaP data for small tests. To run the pipeline, we can use the following command:
 
 ```bash
-make panos
+make run
 ```
-
-This will:
-1. Define regions of interest (e.g., 3 de Febrero, Buenos Aires)
-2. Create a grid of points within the regions
-3. Query the Street View API for panoramas at each point
-4. Save the results to the `data/demo` directory
-
-### Point Unification
-
-Run the point unification algorithm to group panorama points based on spatial proximity:
-
-```bash
-make unify
-```
-
-This will:
-1. Load panorama data from the demo
-2. Apply both H3-based hexagon grouping and DBSCAN clustering methods
-3. Save the results to the `data/point_unification_results` directory
-4. Save the processed data to the `data/point_unification_results` directory
 
 ## Workflow Overview
 
-### Step 1: Define a Region
+The `region_osm` parameter will filter out the [original ReNaBaP polygons](https://www.argentina.gob.ar/obras-publicas/sisu/renabap/mapa) to only include the region of interest.
 
-Provide a polygon representing the area of interest.
+![Region of interest](./assets/renabap_intersected.png "Region of interest")
 
-![Region of interest](./assets/region.png "Region of interest")
+The resulting data will be buffered to include a 500-meter margin around the each ReNaBaP polygon.
 
-### Step 2: Create a Grid of Points
+![Buffered region](./assets/renabap_buffered.png "Buffered region")
 
-Generate evenly spaced points (e.g., every 50 meters) within the polygon using geospatial transformation to UTM coordinates for accurate spacing.
+Then, the buffered regions will be used to query the Google Street View API for panorama data.
 
-```python
-points = src.utils.create_point_grid(region, 50)
-```
+![Panos](./assets/panos.png "Resulting panoramas")
 
-![Grid of points](./assets/region_points.png "Grid of points")
+Finally, the panorama points will be unified using DBSCAN clustering.
 
-### Step 3: Query Street View API
+![DBSCAN](./assets/unified.png "DBSCAN results")
 
-Each point is queried to check for nearby Google Street View panoramas, and metadata such as pano ID, location, and date are collected.
-
-```python
-panos = src.sv.get_panos(points)
-```
-
-![Panos](./assets/region_points_panos.png "Resulting panoramas")
-
-### Step 4: Point Unification
-
-Group panorama points based on spatial proximity using DBSCAN clustering with haversine distance
-
-### Step 5: Generate Plots
-
-Create visualizations of the processed data:
-
-```bash
-make plots
-```
-
-This will:
-1. Load processed data from the `data/point_unification_results` directory
-2. Generate visualization plots (H3 results, DBSCAN results, panorama dates)
-3. Save the plots to the `data/plots` directory
-
-```python
-# H3 unification
-h3_results = unify_points_h3(panos_gdf, resolution=11)
-
-# DBSCAN unification
-dbscan_results = unify_points_dbscan(panos_gdf, eps_meters=5, min_samples=1)
-```
+Coverage is determined by calculating the area of intersection between the ReNaBaP polygon and the panorama points buffered by 5 meters.
 
 ## Next Steps & Future Developments
 
-- Indexing panorama points to consistent locations within the areas to assess change dynamics more accurately
-- Calculating coverage area by informal settlement polygon, where panorama points have an "area of influence" that intersects with the polygon (coverage = area of intersection / polygon area)
 - Downloading Google Street View images for proof-of-concept areas
 - Implementing computer vision models to quantify changes over time
 
-## Roadmap
+## Contact
 
-### Primary
-
-- [ ] Connect panorama points to the OpenStreetMaps street grid (https://github.com/rpasquini/street-level-change/issues/3) and calculate area of coverage in meters (https://github.com/rpasquini/street-level-change/issues/1)
-
-### Secondary
-
-- [ ] Generate a street grid from Google Street View images (https://github.com/rpasquini/street-level-change/issues/4)
+- Ricardo Pasquini - [rpasquini@utdt.edu](mailto:rpasquini@utdt.edu)
+- Jerónimo Luza - [jeronimoluza@gmail.com](mailto:jeronimoluza@gmail.com)
