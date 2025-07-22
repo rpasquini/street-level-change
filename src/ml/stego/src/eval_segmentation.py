@@ -1,5 +1,5 @@
-from modules import *
-from data import *
+from .modules import *
+from .data import *
 from collections import defaultdict
 from multiprocessing import Pool
 import hydra

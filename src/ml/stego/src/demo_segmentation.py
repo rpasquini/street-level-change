@@ -1,4 +1,4 @@
-from modules import *
+from .modules import *
 import hydra
 import torch.multiprocessing
 from PIL import Image

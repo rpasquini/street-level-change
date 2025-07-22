@@ -9,11 +9,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class StreetViewFetcher:
-    def __init__(self, api_key=None):
+    def __init__(self, api_key=None, data_dir=None):
         """
         Initialize the Street View fetcher with your API key
         Args:
             api_key (str, optional): Your Google Street View Static API key. If None, loads from environment
+            data_dir (str, optional): Directory to save output files
         """
         # Get API key from environment if not provided
         if api_key is None:
@@ -21,6 +22,7 @@ class StreetViewFetcher:
             if api_key is None:
                 raise ValueError("No API key provided. Set GOOGLE_STREET_VIEW_API_KEY in .env file or pass api_key parameter")
         
+        self.data_dir = data_dir
         self.api_key = api_key
         self.base_url = "https://maps.googleapis.com/maps/api/streetview"
         self.metadata_url = "https://maps.googleapis.com/maps/api/streetview/metadata"
@@ -188,7 +190,7 @@ def save_panorama_sequence(images, output_dir):
 
 if __name__ == "__main__":
     # Example usage
-    fetcher = StreetViewFetcher()  # Will load API key from .env
+    fetcher = StreetViewFetcher(data_dir="street_view_images")  # Will load API key from .env
     
     # Use the specific panorama ID from the URL
     panoid = "IRjUkZh19iAqvgNSyqOR_w"
@@ -197,7 +199,7 @@ if __name__ == "__main__":
     os.makedirs("street_view_images/test_images", exist_ok=True)
     
     # Fetch and save specific view using the parameters from the URL
-    output_path = os.path.join("street_view_images/test_images", "buenos_aires_view_2015.jpg")
+    output_path = os.path.join(fetcher.data_dir, "buenos_aires_view_2015.jpg")
     img = fetcher.get_panorama_by_id(
         panoid=panoid,
         heading=134.12,  # From the URL's yaw parameter

@@ -4,9 +4,9 @@ import torch.nn.functional as F
 from PIL import Image
 import matplotlib.pyplot as plt
 import numpy as np
-from train_segmentation import LitUnsupervisedSegmenter, get_class_labels
-from utils import get_transform, unnorm, UnsupervisedMetrics
-from crf import dense_crf
+from .stego.src.train_segmentation import LitUnsupervisedSegmenter, get_class_labels
+from .stego.src.utils import get_transform, unnorm, UnsupervisedMetrics
+from .stego.src.crf import dense_crf
 
 class ImageSegmenter:
     def __init__(self, stego_checkpoint_path):
@@ -245,20 +245,20 @@ class ImageSegmenter:
                    bbox_inches='tight', dpi=300)
         plt.close()
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
     # Example usage
-    STEGO_CHECKPOINT = "STEGO/saved_models/cityscapes_vit_base_1.ckpt"  # Path to STEGO checkpoint
-    #STEGO_CHECKPOINT = "saved_models/cocostuff27_vit_base_5.ckpt"  # Path to STEGO checkpoint
-    # Initialize segmenter
-    segmenter = ImageSegmenter(STEGO_CHECKPOINT)
+    # STEGO_CHECKPOINT = "STEGO/saved_models/cityscapes_vit_base_1.ckpt"  # Path to STEGO checkpoint
+    # #STEGO_CHECKPOINT = "saved_models/cocostuff27_vit_base_5.ckpt"  # Path to STEGO checkpoint
+    # # Initialize segmenter
+    # segmenter = ImageSegmenter(STEGO_CHECKPOINT)
     
-    # Example: Segment a single image
-    image_path = "street_view_images/test_images/buenos_aires_view_2015.jpg"  # Replace with your image path
-    metrics = segmenter.segment_image(image_path, "street_view_images/segmentation_results")
-    print("\nSingle Image Metrics:")
-    print("Class Distribution:")
-    for class_name, stats in metrics['class_distribution'].items():
-        print(f"{class_name}: {stats['percentage']:.2f}%")
+    # # Example: Segment a single image
+    # image_path = "street_view_images/test_images/buenos_aires_view_2015.jpg"  # Replace with your image path
+    # metrics = segmenter.segment_image(image_path, "street_view_images/segmentation_results")
+    # print("\nSingle Image Metrics:")
+    # print("Class Distribution:")
+    # for class_name, stats in metrics['class_distribution'].items():
+    #     print(f"{class_name}: {stats['percentage']:.2f}%")
     
     # Example: Segment all images in a directory
     # input_dir = "test_images"

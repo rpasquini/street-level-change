@@ -1,4 +1,4 @@
-from utils import *
+from .utils import *
 import hydra
 from omegaconf import DictConfig
 import os

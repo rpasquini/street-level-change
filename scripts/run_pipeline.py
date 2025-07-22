@@ -6,7 +6,7 @@ which provides a more modular and maintainable approach.
 
 from src.pipeline import run_region
 
-def main():
+def run_points():
     """Run the region analysis using the pipeline module."""
     # Region to process
     region_slug = "tresdefebrero"
@@ -17,4 +17,4 @@ def main():
     print("Processing complete!")
 
 if __name__ == "__main__":
-    main()
+    run_points()

@@ -1,6 +1,6 @@
-from modules import *
+from .modules import *
 import os
-from data import ContrastiveSegDataset
+from .data import ContrastiveSegDataset
 import hydra
 import torch
 from omegaconf import DictConfig, OmegaConf
