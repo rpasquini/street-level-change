@@ -12,12 +12,14 @@ from typing import Tuple, Union
 from tqdm import tqdm
 
 from src.data_handlers.exporters import export_to_csv
-from src.processing.point_unification import (
+from src.core.point_unification import (
     evaluate_compactness,
     spatial_silhouette_score,
     unify_points,
     compute_cluster_centroids,
 )
+
+from src.core.heading_fov import get_angles
 from src.core.geo_utils import create_point_grid_from_gdf
 from src.api.streetview import get_panoramas_for_points
 from src.core.geo_utils import buffer_region
@@ -185,7 +187,7 @@ def process_barrios(
     Join panorama data with RENABAP barrio data.
     Creates two dummies for each panorama:
         - inside: 1 if the panorama is inside the barrio, 0 otherwise
-        - inside_buffered: 1 if the panorama is inside a small buffered barrio, 0 otherwise
+        - close: 1 if the panorama is inside a small buffered barrio, 0 otherwise
     
     Parameters
     ----------
@@ -217,7 +219,10 @@ def process_barrios(
 
         panos["inside_close"] = panos['inside'] + panos["close"]
 
-        panos = panos.rename(columns={"id_renabap": "closest_barrio"})
+        panos = panos.rename(
+            columns={"id_renabap": "closest_barrio"}).drop(columns=["index_right"]
+            )
+
         # Save joined data
         export_to_csv(panos, joined_path)
     else:
@@ -388,3 +393,60 @@ def calculate_coverage_area(
         coverage_per_barrio = load_from_csv(coverage_per_barrio_path)
     return coverage_per_barrio
         
+
+def process_heading_fov(
+    panos: gpd.GeoDataFrame,
+    control_points: gpd.GeoDataFrame,
+    data_dir: str,
+    max_distance: int = 10,
+    max_fov: int = 120,
+) -> pd.DataFrame:
+    """
+    Process heading and FOV for panoramas.
+    
+    Parameters
+    ----------
+    panos : gpd.GeoDataFrame
+        Panorama data
+    control_points : gpd.GeoDataFrame
+        Control points data
+    data_dir : str
+        Directory to save output files
+        
+    Returns
+    -------
+    gpd.GeoDataFrame
+        Panorama data with heading and FOV
+    """
+
+    # We need to reproject before getting angles due to distance
+    panos = panos.to_crs(3857)
+    control_points = control_points.to_crs(3857)
+    
+    output_path = os.path.join(data_dir, "heading_fov.csv")
+    if not os.path.exists(output_path):
+        output = []
+        for _, row in control_points.iterrows():
+            cpid = row['cluster_id']
+            cpgeom = row['geometry']
+            related = panos[panos['cluster_id'] == cpid].copy()
+            for _, panorow in related.iterrows():
+                pano_id = panorow['pano_id']
+                pano_geom = panorow['geometry']
+                angles = get_angles(pano_geom, cpgeom, max_distance, max_fov)
+                for angle in angles:
+                    output.append({
+                        "pano_id": pano_id,
+                        "cluster_id": cpid,
+                        "direction": angle[0],
+                        "heading": angle[1],
+                        "fov": angle[2],
+                        "view_id": pano_id + "_" + angle[0]
+                    })
+        
+        output = pd.DataFrame(output)
+        output.to_csv(output_path)
+    else:
+        output = load_from_csv(output_path)
+
+    return output

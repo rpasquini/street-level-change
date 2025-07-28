@@ -22,7 +22,7 @@ def unify_points(
     projected_crs: str = "EPSG:3857"  # can be set to UTM if needed
 ) -> gpd.GeoDataFrame:
     """
-    Unify points using DBSCAN clustering with distance in meters.
+    Unifies panorama points using DBSCAN clustering with distance in meters.
     
     Parameters
     ----------

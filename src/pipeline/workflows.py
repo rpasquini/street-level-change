@@ -16,7 +16,8 @@ from .components import (
     process_dbscan,
     process_barrios,
     calculate_coverage_area,
-    evaluate_clustering_full
+    evaluate_clustering_full,
+    process_heading_fov
 )
 from src.visualization.static_plotting import plot_date_distribution
 from src.api.streetview import download_panorama_image
@@ -88,6 +89,15 @@ def run_region(region_slug: str, region_osm: str) -> None:
         buffer_dist=15,
         data_dir=output_dir,
         check=True
+    )
+    
+    # Process heading and FOV
+    heading_fov = process_heading_fov(
+        panos=joined,
+        control_points=centroids,
+        data_dir=output_dir,
+        max_distance=10,
+        max_fov=120
     )
     
     print(f"Region processing completed for {region_slug}")
