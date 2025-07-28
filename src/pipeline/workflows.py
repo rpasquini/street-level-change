@@ -65,7 +65,7 @@ def run_region(region_slug: str, region_osm: str) -> None:
     panoramas = process_panos(regions, dist_points_grid, output_dir)
 
     # Visualize date distribution
-    plot_date_distribution(panoramas, output_dir=output_dir)
+    # plot_date_distribution(panoramas, output_dir=output_dir)
 
     # Download a sample panorama image
     # download_panorama_image("pWcvnuI0aGwGObCdcy2avg", output_path=os.path.join(output_dir, "panorama.jpg"))
