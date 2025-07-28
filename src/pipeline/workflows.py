@@ -83,11 +83,11 @@ def run_region(region_slug: str, region_osm: str) -> None:
 
     # Calculate coverage area metrics
     coverage = calculate_coverage_area(
-        centroid_buffer,
-        centroids,
-        renabap_intersected,
-        renabap_buffered,
+        polygons=renabap_intersected,
+        capture_points=centroids,
+        buffer_dist=15,
         data_dir=output_dir,
+        check=True
     )
     
     print(f"Region processing completed for {region_slug}")
