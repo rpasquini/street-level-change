@@ -15,6 +15,8 @@ from tqdm import tqdm
 from src.core.panorama import PanoramaCollection
 from src.core.geo_utils import haversine_distance
 
+
+
 def unify_points(
     gdf: Union[gpd.GeoDataFrame, 'PanoramaCollection'],
     eps: float = 5,  # in meters
@@ -56,8 +58,10 @@ def unify_points(
     coords = np.array([(p.x, p.y) for p in gdf_proj.geometry])
 
     # Apply DBSCAN in projected space (meters)
+    np.random.seed(42)
     db = DBSCAN(eps=eps, min_samples=min_samples).fit(coords)
     gdf["cluster_id"] = db.labels_
+    np.random.seed(None)
 
     return gdf
 
