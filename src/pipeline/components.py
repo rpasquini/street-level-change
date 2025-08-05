@@ -8,21 +8,23 @@ in workflows for processing street-level imagery data.
 import os
 import geopandas as gpd
 import pandas as pd
-from typing import Tuple
+from typing import Tuple, Union
 from tqdm import tqdm
 
 from src.data_handlers.exporters import export_to_csv
-from src.processing.point_unification import (
+from src.core.point_unification import (
     evaluate_compactness,
     spatial_silhouette_score,
     unify_points,
     compute_cluster_centroids,
 )
+
+from src.core.heading_fov import get_angles
 from src.core.geo_utils import create_point_grid_from_gdf
 from src.api.streetview import get_panoramas_for_points
 from src.core.geo_utils import buffer_region
 from src.data_handlers.loaders import load_from_csv, load_panorama_data
-from src.core.geo_utils import find_region
+from src.core.geo_utils import find_region, get_roads_from_gdf, get_roads_from_polygon
 
 
 def process_region(region_osm: str, buffer_dist: int, data_dir: str) -> Tuple[gpd.GeoDataFrame, gpd.GeoSeries, gpd.GeoDataFrame, gpd.GeoDataFrame]:
@@ -46,7 +48,7 @@ def process_region(region_osm: str, buffer_dist: int, data_dir: str) -> Tuple[gp
     # Polígonos del RENABAP
     # https://datos.gob.ar/dataset/habitat-registro-nacional-barrios-populares
     renabap = gpd.read_file(
-        "https://archivo.habitat.gob.ar/dataset/ssisu/renabap-datos-barrios-geojson"
+        "https://archivo.infraestructura.gob.ar/dataset/ssisu/renabap-datos-barrios-geojson"
     )
 
     region_gdf_path = os.path.join(data_dir, "region_gdf.csv")
@@ -185,7 +187,7 @@ def process_barrios(
     Join panorama data with RENABAP barrio data.
     Creates two dummies for each panorama:
         - inside: 1 if the panorama is inside the barrio, 0 otherwise
-        - inside_buffered: 1 if the panorama is inside a small buffered barrio, 0 otherwise
+        - close: 1 if the panorama is inside a small buffered barrio, 0 otherwise
     
     Parameters
     ----------
@@ -217,7 +219,10 @@ def process_barrios(
 
         panos["inside_close"] = panos['inside'] + panos["close"]
 
-        panos = panos.rename(columns={"id_renabap": "closest_barrio"})
+        panos = panos.rename(
+            columns={"id_renabap": "closest_barrio"}).drop(columns=["index_right"]
+            )
+
         # Save joined data
         export_to_csv(panos, joined_path)
     else:
@@ -320,81 +325,128 @@ def evaluate_clustering_full(
 
 
 def calculate_coverage_area(
-    centroid_buffer: int,
-    centroids: gpd.GeoDataFrame,
-    renabap_intersected: gpd.GeoDataFrame,
-    renabap_buffered: gpd.GeoDataFrame,
+    polygons: gpd.GeoDataFrame,
+    capture_points: gpd.GeoDataFrame,
+    buffer_dist: int,
     data_dir: str,
-) -> pd.DataFrame:
+    buffer_polygons: Union[int, None] = None,
+    check:bool = False
+    ) -> pd.DataFrame:
     """
-    Calculate coverage area metrics.
-    
+    Get Google Street View images coverage for a dataset of polygons, 
+    where coverage is defined as the percentage of meters roads inside a polygon
+    'observed' (15m buffer)
+
     Parameters
     ----------
-    centroid_buffer : int
-        Buffer distance for centroids
-    centroids : gpd.GeoDataFrame
-        Centroids data
-    renabap_intersected : gpd.GeoDataFrame
-        Intersected RENABAP data
-    renabap_buffered : gpd.GeoDataFrame
-        Buffered RENABAP data
+    polygons : gpd.GeoDataFrame
+        Input GeoDataFrame
+    capture_points : gpd.GeoDataFrame
+        Capture points GeoDataFrame
     data_dir : str
         Directory to save output files
+    buffer_polygons : Union[int, None] = None
+        Buffer distance for polygons
+    check : bool = False
+        Whether to export the data for plotting
         
     Returns
     -------
     pd.DataFrame
         Coverage area metrics
     """
-    coverage_barrio_path = os.path.join(data_dir, "coverage_per_barrio.csv")
-    coverage_area_path = os.path.join(data_dir, "coverage_areas.csv")
-    def calculate_area_per_region(
-        regions: gpd.GeoDataFrame, buffered_centroids: gpd.GeoDataFrame
-    ):
-        """
-        Calculate area coverage per region.
+
+    coverage_per_barrio_path = os.path.join(data_dir, "coverage_per_barrio.csv")
+    if not os.path.exists(coverage_per_barrio_path):
+        coverage_per_barrio = []
+        if buffer_polygons is not None:
+            polygons = buffer_region(polygons, buffer_dist=buffer_polygons)
+
+        capture_points = buffer_region(capture_points, buffer_dist=buffer_dist)
+
+        # For visual checks on kepler.gl
+        if check:
+            capture_points.to_csv(os.path.join(data_dir, "capture_points_buffered.csv"))
+            roads = get_roads_from_gdf(polygons)
+            roads.to_csv(os.path.join(data_dir, "roads.csv"))
+
+        for _, row in polygons.iterrows():
+            polygon = row["geometry"]
+            roads = get_roads_from_polygon(polygon)
+            total = roads["roadlength"].sum()
+
+            result = roads.clip(capture_points.union_all()).to_crs(3857)
+            result["roadlength"] = result.geometry.length
+            partial = result.roadlength.sum()
+
+            coverage_per_barrio.append({
+                "id_renabap": row["id_renabap"],
+                "total": total,
+                "partial": partial,
+                "coverage": round(partial / total, 3),
+                "geometry": row["geometry"].wkt
+            })
         
-        Parameters
-        ----------
-        regions : gpd.GeoDataFrame
-            Region data
-        buffered_centroids : gpd.GeoDataFrame
-            Buffered centroids
-            
-        Returns
-        -------
-        gpd.GeoDataFrame
-            Regions with coverage area metrics
-        """
-        regions = regions.to_crs(3857)
-        buffered_centroids = buffered_centroids.to_crs(3857)
-        regions["original_region_area"] = regions.area
-        regions = regions.clip(buffered_centroids.to_crs(3857).union_all())
-        regions["coverage_area"] = regions.area / regions["original_region_area"]
-        return regions.to_crs(4326)
-
-    if not os.path.exists(coverage_barrio_path):
-        centroids["geometry"] = (
-            centroids.to_crs(3857).buffer(centroid_buffer).to_crs(4326)
-        )
-        if not os.path.exists(coverage_area_path):
-            centroids.to_csv(coverage_area_path)
-
-        barrio_coverage = calculate_area_per_region(
-            renabap_intersected, centroids
-        )
-        buffered_barrio_coverage = calculate_area_per_region(
-            renabap_buffered, centroids
-        ).rename({"coverage_area": "buffered_coverage_area"}, axis=1)
-
-        coverage = (
-            barrio_coverage.set_index("id_renabap").coverage_area.to_frame()
-            .join(buffered_barrio_coverage.set_index("id_renabap").buffered_coverage_area.to_frame())
-            .reset_index()
-        )
-        coverage.to_csv(coverage_barrio_path, index=False)
+        coverage_per_barrio = pd.DataFrame(coverage_per_barrio)
+        coverage_per_barrio.to_csv(coverage_per_barrio_path)
     else:
-        coverage = load_from_csv(coverage_barrio_path)
+        coverage_per_barrio = load_from_csv(coverage_per_barrio_path)
+    return coverage_per_barrio
+        
 
-    return coverage
+def process_heading_fov(
+    panos: gpd.GeoDataFrame,
+    control_points: gpd.GeoDataFrame,
+    data_dir: str,
+    max_distance: int = 10,
+    max_fov: int = 120,
+) -> pd.DataFrame:
+    """
+    Process heading and FOV for panoramas.
+    
+    Parameters
+    ----------
+    panos : gpd.GeoDataFrame
+        Panorama data
+    control_points : gpd.GeoDataFrame
+        Control points data
+    data_dir : str
+        Directory to save output files
+        
+    Returns
+    -------
+    gpd.GeoDataFrame
+        Panorama data with heading and FOV
+    """
+
+    # We need to reproject before getting angles due to distance
+    panos = panos.to_crs(3857)
+    control_points = control_points.to_crs(3857)
+    
+    output_path = os.path.join(data_dir, "heading_fov.csv")
+    if not os.path.exists(output_path):
+        output = []
+        for _, row in control_points.iterrows():
+            cpid = row['cluster_id']
+            cpgeom = row['geometry']
+            related = panos[panos['cluster_id'] == cpid].copy()
+            for _, panorow in related.iterrows():
+                pano_id = panorow['pano_id']
+                pano_geom = panorow['geometry']
+                angles = get_angles(pano_geom, cpgeom, max_distance, max_fov)
+                for angle in angles:
+                    output.append({
+                        "pano_id": pano_id,
+                        "cluster_id": cpid,
+                        "direction": angle[0],
+                        "heading": angle[1],
+                        "fov": angle[2],
+                        "view_id": pano_id + "_" + angle[0]
+                    })
+        
+        output = pd.DataFrame(output)
+        output.to_csv(output_path)
+    else:
+        output = load_from_csv(output_path)
+
+    return output

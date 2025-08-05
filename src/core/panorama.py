@@ -210,7 +210,7 @@ class PanoramaCollection:
             boundary = boundary.union_all()
 
         gdf = self.to_geodataframe()
-        return gdf[gdf.intersects(boundary)]
+        return gdf[gdf.intersects(boundary)].drop_duplicates()
 
     def to_dataframe(self) -> pd.DataFrame:
         """

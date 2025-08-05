@@ -57,11 +57,11 @@ Coverage is determined by calculating the area of intersection between the ReNaB
 
 ## Fetching GSV images
 
-```python street_view_images/street_view_fetcher.py```
+```make fetch```
 
 ## Segmentation
 
-```python STEGO/src/segment_street_view.py```
+```make stego```
 
 
 
