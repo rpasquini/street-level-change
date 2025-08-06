@@ -372,8 +372,18 @@ def calculate_coverage_area(
 
         for _, row in polygons.iterrows():
             polygon = row["geometry"]
-            roads = get_roads_from_polygon(polygon)
-            total = roads["roadlength"].sum()
+            intersecting_capture_points = capture_points[
+                capture_points.intersects(polygon)
+            ]
+            union = pd.concat([
+                intersecting_capture_points, 
+                polygon
+            ]).reset_index(drop=True).union_all()
+            
+            roads = get_roads_from_polygon(
+                union
+            )
+            total = roads.to_crs(3857)["roadlength"].sum()
 
             result = roads.clip(capture_points.union_all()).to_crs(3857)
             result["roadlength"] = result.geometry.length
