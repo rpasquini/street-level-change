@@ -10,6 +10,7 @@ import geopandas as gpd
 import pandas as pd
 from typing import Tuple, Union
 from tqdm import tqdm
+from shapely import union, buffer
 
 from src.data_handlers.exporters import export_to_csv
 from src.core.point_unification import (
@@ -330,7 +331,6 @@ def calculate_coverage_area(
     buffer_dist: int,
     data_dir: str,
     buffer_polygons: Union[int, None] = None,
-    check:bool = False
     ) -> pd.DataFrame:
     """
     Get Google Street View images coverage for a dataset of polygons, 
@@ -347,9 +347,7 @@ def calculate_coverage_area(
         Directory to save output files
     buffer_polygons : Union[int, None] = None
         Buffer distance for polygons
-    check : bool = False
-        Whether to export the data for plotting
-        
+    
     Returns
     -------
     pd.DataFrame
@@ -360,41 +358,53 @@ def calculate_coverage_area(
     if not os.path.exists(coverage_per_barrio_path):
         coverage_per_barrio = []
         if buffer_polygons is not None:
-            polygons = buffer_region(polygons, buffer_dist=buffer_polygons)
+            buffered_polygons = buffer_region(polygons, buffer_dist=buffer_polygons)
 
         capture_points = buffer_region(capture_points, buffer_dist=buffer_dist)
 
-        # For visual checks on kepler.gl
-        if check:
-            capture_points.to_csv(os.path.join(data_dir, "capture_points_buffered.csv"))
-            roads = get_roads_from_gdf(polygons)
-            roads.to_csv(os.path.join(data_dir, "roads.csv"))
+        intersecting_capture_points = capture_points[
+            capture_points.intersects(polygons.union_all())
+        ]
+        osm_polygons = pd.concat([
+            buffered_polygons,
+            intersecting_capture_points
+        ]).reset_index(drop=True)
+        roads = get_roads_from_polygon(osm_polygons.union_all())
+        roads.to_csv(os.path.join(data_dir, "roads.csv"))
 
         for _, row in polygons.iterrows():
             polygon = row["geometry"]
             intersecting_capture_points = capture_points[
                 capture_points.intersects(polygon)
             ]
-            union = pd.concat([
-                intersecting_capture_points, 
-                polygon
-            ]).reset_index(drop=True).union_all()
-            
-            roads = get_roads_from_polygon(
-                union
-            )
-            total = roads.to_crs(3857)["roadlength"].sum()
 
-            result = roads.clip(capture_points.union_all()).to_crs(3857)
+            barrio_and_capture_points = union(
+                buffer(polygon, buffer_polygons),
+                intersecting_capture_points.union_all()
+            )
+
+            total = roads.clip(
+                barrio_and_capture_points
+            ).to_crs(3857)["roadlength"].sum()
+
+            result = roads.clip(
+                intersecting_capture_points
+            ).to_crs(3857)
+
             result["roadlength"] = result.geometry.length
             partial = result.roadlength.sum()
+
+            def handle_zeroes(partial, total):
+                if (total == 0) or (partial == 0):
+                    return 0
+                return round(partial / total, 3)
 
             coverage_per_barrio.append({
                 "id_renabap": row["id_renabap"],
                 "total": total,
                 "partial": partial,
-                "coverage": round(partial / total, 3),
-                "geometry": row["geometry"].wkt
+                "coverage": handle_zeroes(partial, total),
+                "geometry": polygon.wkt
             })
         
         coverage_per_barrio = pd.DataFrame(coverage_per_barrio)
