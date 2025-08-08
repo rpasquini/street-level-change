@@ -21,6 +21,7 @@ from src.core.point_unification import (
     compute_cluster_centroids,
 )
 
+from src.core.panorama import PanoramaCollection
 from src.core.heading_fov import get_angles
 from src.core.geo_utils import create_point_grid_from_gdf
 from src.api.streetview import get_panoramas_for_points
@@ -28,7 +29,6 @@ from src.core.geo_utils import buffer_region
 from src.data_handlers.loaders import load_from_csv, load_panorama_data
 from src.core.geo_utils import (
     find_region,
-    get_roads_from_gdf,
     get_roads_from_polygon,
 )
 
@@ -123,6 +123,7 @@ def process_panos(
         panoramas = get_panoramas_for_points(points_gdf, verbose=True)
 
         panoramas = panoramas.clean(renabap_buffered)
+        print(panoramas.head())
 
         export_to_csv(panoramas, panos_path)
         print(f"Panoramas saved to {panos_path}")
@@ -130,6 +131,93 @@ def process_panos(
         panoramas = load_panorama_data(panos_path)
 
     return panoramas
+
+
+def enrich_panorama_database_from_centroids(
+    centroids: gpd.GeoDataFrame, renabap_buffered: gpd.GeoDataFrame, data_dir: str, max_workers: int = 10, verbose: bool = True
+) -> gpd.GeoDataFrame:
+    """
+    Enrich panorama database by querying at each DBSCAN centroid location.
+    
+    This function takes DBSCAN centroids as input and queries the Google Street View API
+    at each centroid location to find all available panoramas, including historical ones.
+    This approach helps capture temporal sequences of panoramas at the same location that
+    might be missed by the initial grid-based approach.
+
+    Parameters
+    ----------
+    centroids : gpd.GeoDataFrame
+        GeoDataFrame containing DBSCAN centroid points
+    renabap_buffered : gpd.GeoDataFrame
+        Buffered RENABAP data
+    data_dir : str
+        Directory to save output files
+    max_workers : int, default=10
+        Maximum number of parallel workers for API queries
+    verbose : bool, default=True
+        Whether to display progress information
+
+    Returns
+    -------
+    gpd.GeoDataFrame
+        Enriched panorama data as a GeoDataFrame
+    """
+    
+    # Path for enriched panoramas
+    enriched_panos_path = os.path.join(data_dir, "panos_enriched.csv")
+    
+    # Check if enriched panoramas already exist
+    if os.path.exists(enriched_panos_path):
+        print(f"Loading existing enriched panoramas from {enriched_panos_path}")
+        return load_panorama_data(enriched_panos_path)
+    
+    # Load original panoramas for comparison later
+    original_panos_path = os.path.join(data_dir, "panos.csv")
+    original_panoramas = None
+    if os.path.exists(original_panos_path):
+        original_panoramas = load_panorama_data(original_panos_path)
+        print(f"Loaded {len(original_panoramas)} original panoramas for comparison")
+    
+    # Query panoramas at each centroid location
+    print(f"Querying panoramas at {len(centroids)} centroid locations...")
+    enriched_panoramas = get_panoramas_for_points(
+        centroids, max_workers=max_workers, verbose=verbose
+    )
+    enriched_panoramas = enriched_panoramas.clean(renabap_buffered)
+    
+    combined_panoramas = []
+    # Combine with original panoramas if available
+    if original_panoramas is not None:
+        # Create a new collection with all panoramas
+        
+        # Add original panoramas
+        for _, panorama in original_panoramas.iterrows():
+            combined_panoramas.append(panorama)
+        
+        existing_ids = [panorama.pano_id for _, panorama in original_panoramas.iterrows()]
+        # Add new panoramas from centroids
+        for _, panorama in enriched_panoramas.iterrows():
+            if panorama.pano_id not in existing_ids:
+                combined_panoramas.append(panorama)
+        
+        # Report statistics
+        original_count = len(original_panoramas)
+        combined_count = len(combined_panoramas)
+        new_count = combined_count - original_count
+        
+        print(f"Original panorama count: {original_count}")
+        print(f"New panoramas found: {new_count}")
+        print(f"Total combined panoramas: {combined_count}")
+        
+        # Use the combined collection
+        enriched_panoramas = combined_panoramas
+    
+    combined_panoramas = PanoramaCollection(combined_panoramas)
+    # Save the enriched panoramas
+    export_to_csv(combined_panoramas.to_dataframe(), enriched_panos_path)
+    print(f"Enriched panoramas saved to {enriched_panos_path}")
+    
+    return combined_panoramas
 
 
 def process_dbscan(

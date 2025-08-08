@@ -16,8 +16,8 @@ from .components import (
     process_dbscan,
     process_barrios,
     calculate_coverage_area,
-    evaluate_clustering_full,
-    process_heading_fov
+    process_heading_fov,
+    enrich_panorama_database_from_centroids
 )
 from src.visualization.static_plotting import plot_date_distribution
 from src.api.streetview import download_panorama_image
@@ -50,7 +50,7 @@ def run_region(region_slug: str, region_osm: str) -> None:
     dist_points_grid = 50
 
     # DBSCAN parameters
-    dbscan_eps = 2.5
+    dbscan_eps = 5
     dbscan_min_samples = 1
 
     # Centroid buffer distance in meters
@@ -75,6 +75,24 @@ def run_region(region_slug: str, region_osm: str) -> None:
     dbscan_results, centroids = process_dbscan(
         panoramas, dbscan_eps, dbscan_min_samples, output_dir
     )
+    
+    # Enrich panorama database using DBSCAN centroids
+    enriched_panoramas = enrich_panorama_database_from_centroids(
+        centroids=centroids,
+        renabap_buffered=renabap_buffered,
+        data_dir=output_dir,
+        max_workers=10,
+        verbose=True
+    )
+    
+    # Re-run DBSCAN on enriched panoramas if needed
+    # Uncomment the following lines to re-cluster with enriched data
+    # enriched_dbscan_results, enriched_centroids = process_dbscan(
+    #     enriched_panoramas, dbscan_eps, dbscan_min_samples, 
+    #     os.path.join(output_dir, "enriched")
+    # )
+    # centroids = enriched_centroids  # Use enriched centroids for downstream tasks
+    # dbscan_results = enriched_dbscan_results  # Use enriched results for downstream tasks
 
     # Optional: Evaluate clustering
     # clustering_eval = evaluate_clustering_full(panoramas, 5, 10, 1, output_dir)

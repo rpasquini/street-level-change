@@ -49,7 +49,6 @@ class Panorama:
         self.lat = lat
         self.lon = lon
         self.date = date
-        
         self.metadata = metadata or {}
         
     @property
@@ -210,7 +209,10 @@ class PanoramaCollection:
             boundary = boundary.union_all()
 
         gdf = self.to_geodataframe()
-        return gdf[gdf.intersects(boundary)].drop_duplicates()
+        gdf = gdf[gdf.intersects(boundary)]
+        gdf = gdf.groupby('pano_id')[['lat','lon']].mean().reset_index()
+        geometries = [Point(p.lon, p.lat) for _, p in gdf.iterrows()]
+        return gpd.GeoDataFrame(gdf, geometry=geometries, crs="EPSG:4326")
 
     def to_dataframe(self) -> pd.DataFrame:
         """
