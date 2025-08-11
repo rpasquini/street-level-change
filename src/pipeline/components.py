@@ -221,59 +221,55 @@ def enrich_panorama_database_from_centroids(
 
 
 def process_dbscan(
-    panoramas: gpd.GeoDataFrame,
-    dbscan_eps: float,
-    dbscan_min_samples: int,
-    data_dir: str,
+    panoramas: gpd.GeoDataFrame, eps: float, min_samples: int, data_dir: str,
+    output_prefix: str = ""
 ) -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
     """
-    Process panorama data using DBSCAN clustering.
-
+    Process DBSCAN clustering on panorama data.
+    
     Parameters
     ----------
     panoramas : gpd.GeoDataFrame
-        Panorama data
-    dbscan_eps : float
-        DBSCAN epsilon parameter
-    dbscan_min_samples : int
-        DBSCAN minimum samples parameter
+        GeoDataFrame containing panorama data
+    eps : float
+        DBSCAN epsilon parameter (maximum distance between points)
+    min_samples : int
+        DBSCAN min_samples parameter (minimum points to form a cluster)
     data_dir : str
         Directory to save output files
-
+    output_prefix : str, default=""
+        Prefix for output filenames (e.g., "enriched_" for enriched panorama data)
+        
     Returns
     -------
     Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]
-        DBSCAN results and centroids
+        Tuple containing (clustered panoramas, cluster centroids)
     """
-    dbscan_output_path = os.path.join(data_dir, "dbscan_results.csv")
-    dbscan_centroids_path = os.path.join(data_dir, "dbscan_centroids.csv")
-
-    if not os.path.exists(dbscan_output_path):
-        # Apply DBSCAN unification
-        print(
-            f"\nApplying DBSCAN unification with eps={dbscan_eps}, min_samples={dbscan_min_samples}"
-        )
-        dbscan_results = unify_points(
-            panoramas, eps=dbscan_eps, min_samples=dbscan_min_samples
-        )
-
-        # Save results using data_handlers exporters
-        export_to_csv(dbscan_results, dbscan_output_path)
-        print(f"DBSCAN results saved to {dbscan_output_path}")
-    else:
-        dbscan_results = load_from_csv(dbscan_output_path)
-
-    if not os.path.exists(dbscan_centroids_path):
-        # Compute centroids
-        print("\nComputing centroids for DBSCAN results")
-        centroids = compute_cluster_centroids(dbscan_results)
-
-        # Save centroids
-        export_to_csv(centroids, dbscan_centroids_path)
-        print(f"Centroids saved to {dbscan_centroids_path}")
-    else:
-        centroids = load_from_csv(dbscan_centroids_path)
-
+    dbscan_path = os.path.join(data_dir, f"{output_prefix}dbscan.csv")
+    centroids_path = os.path.join(data_dir, f"{output_prefix}centroids.csv")
+    
+    if os.path.exists(dbscan_path) and os.path.exists(centroids_path):
+        print(f"Loading existing DBSCAN results from {dbscan_path}")
+        dbscan_results = load_from_csv(dbscan_path)
+        print(f"Loading existing centroids from {centroids_path}")
+        centroids = load_from_csv(centroids_path)
+        return dbscan_results, centroids
+    
+    print(f"Applying DBSCAN clustering with eps={eps}, min_samples={min_samples}")
+    # Apply DBSCAN clustering
+    dbscan_results = unify_points(panoramas, eps=eps, min_samples=min_samples)
+    
+    # Compute centroids
+    print("Computing cluster centroids")
+    centroids = compute_cluster_centroids(dbscan_results)
+    
+    # Save results
+    print(f"Saving DBSCAN results to {dbscan_path}")
+    export_to_csv(dbscan_results, dbscan_path)
+    print(f"Saving centroids to {centroids_path}")
+    export_to_csv(centroids, centroids_path)
+    
+    print(f"DBSCAN found {len(centroids)} clusters")
     return dbscan_results, centroids
 
 

@@ -85,14 +85,25 @@ def run_region(region_slug: str, region_osm: str) -> None:
         verbose=True
     )
     
-    # Re-run DBSCAN on enriched panoramas if needed
-    # Uncomment the following lines to re-cluster with enriched data
-    # enriched_dbscan_results, enriched_centroids = process_dbscan(
-    #     enriched_panoramas, dbscan_eps, dbscan_min_samples, 
-    #     os.path.join(output_dir, "enriched")
-    # )
-    # centroids = enriched_centroids  # Use enriched centroids for downstream tasks
-    # dbscan_results = enriched_dbscan_results  # Use enriched results for downstream tasks
+    # Re-run DBSCAN on enriched panoramas to get final centroids
+    print("\nRe-running DBSCAN on enriched panorama database...")
+    enriched_dbscan_results, enriched_centroids = process_dbscan(
+        enriched_panoramas, 
+        eps=dbscan_eps, 
+        min_samples=dbscan_min_samples, 
+        data_dir=output_dir,
+        output_prefix="enriched_"
+    )
+    
+    # Save a comparison of original vs enriched centroids
+    print("\nComparing original vs enriched DBSCAN results:")
+    print(f"Original clusters: {len(centroids)}")
+    print(f"Enriched clusters: {len(enriched_centroids)}")
+    print(f"Difference: {len(enriched_centroids) - len(centroids)} clusters")
+
+    centroids = enriched_centroids  # Use enriched centroids for downstream tasks
+    dbscan_results = enriched_dbscan_results  # Use enriched results for downstream tasks
+    
 
     # Optional: Evaluate clustering
     # clustering_eval = evaluate_clustering_full(panoramas, 5, 10, 1, output_dir)
