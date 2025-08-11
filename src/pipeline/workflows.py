@@ -125,7 +125,7 @@ def run_region(region_slug: str, region_osm: str) -> None:
         panos=joined,
         control_points=centroids,
         data_dir=output_dir,
-        max_distance=10,
+        max_distance=100,
         max_fov=120
     )
     
