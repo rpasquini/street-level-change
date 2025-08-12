@@ -50,7 +50,7 @@ def run_region(region_slug: str, region_osm: str) -> None:
     dist_points_grid = 50
 
     # DBSCAN parameters
-    dbscan_eps = 5
+    dbscan_eps = 2.5
     dbscan_min_samples = 1
 
     # Centroid buffer distance in meters
