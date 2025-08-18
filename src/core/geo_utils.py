@@ -161,7 +161,9 @@ def get_roads_from_polygon(polygon) -> gpd.GeoDataFrame:
     roads = roads.to_crs(3857)
     roads["roadlength"] = roads.geometry.length
     roads = roads.to_crs(4326)
-    roads = roads.rename(columns={"highway": "roadtype"})
+    roads = roads.rename(columns={"highway": "roadtype"}).reset_index()
+    roads = roads[roads.element == "way"]
+    roads = roads[["roadtype", "roadlength", "geometry"]]
     return roads.reset_index()
 
 

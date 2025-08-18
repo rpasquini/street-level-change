@@ -24,10 +24,16 @@ def calculate_fov(panorama, p_start, p_end):
     dot = np.clip(np.dot(unit1, unit2), -1.0, 1.0)
     return np.degrees(np.arccos(dot))
 
-def get_segment_points(center, radius, start_angle, end_angle, n_points=30):
-    """Generates points along a circular arc segment."""
-    angles = np.linspace(np.radians(start_angle), np.radians(end_angle), n_points)
-    return [Point(center.x + radius * np.cos(a), center.y + radius * np.sin(a)) for a in angles]
+def get_segment_points(center, radius, start_angle, end_angle, step=1):
+    """
+    Generate segment points with proper handling of wrap-around (angles in degrees, bearing style).
+    """
+    if start_angle > end_angle:
+        angles = list(np.arange(start_angle, 360, step)) + list(np.arange(0, end_angle + step, step))
+    else:
+        angles = list(np.arange(start_angle, end_angle + step, step))
+    return [Point(center.x + radius * np.cos(np.radians(a)),
+                  center.y + radius * np.sin(np.radians(a))) for a in angles]
 
 def split_fov(heading, fov, max_fov=120):
     """Splits a large FOV into multiple smaller sub-FOVs."""
@@ -67,10 +73,10 @@ def get_angles(panorama_point: Point, control_point: Point, max_distance: int = 
     output = []
     # Partition angles for N, E, S, W segments
     segment_angles = {
-        'N': (45, 135),
-        'E': (315, 405),
-        'S': (225, 315),
-        'W': (135, 225),
+        'N': (315, 45),
+        'E': (45, 135),
+        'S': (135, 225),
+        'W': (225, 315),
     }
     for direction, (start_angle, end_angle) in segment_angles.items():
         pts = get_segment_points(control_point, max_distance, start_angle, end_angle)

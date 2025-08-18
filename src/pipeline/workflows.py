@@ -16,8 +16,8 @@ from .components import (
     process_dbscan,
     process_barrios,
     calculate_coverage_area,
-    evaluate_clustering_full,
-    process_heading_fov
+    process_heading_fov,
+    enrich_panorama_database_from_centroids
 )
 from src.visualization.static_plotting import plot_date_distribution
 from src.api.streetview import download_panorama_image
@@ -50,7 +50,7 @@ def run_region(region_slug: str, region_osm: str) -> None:
     dist_points_grid = 50
 
     # DBSCAN parameters
-    dbscan_eps = 5
+    dbscan_eps = 2.5
     dbscan_min_samples = 1
 
     # Centroid buffer distance in meters
@@ -75,6 +75,35 @@ def run_region(region_slug: str, region_osm: str) -> None:
     dbscan_results, centroids = process_dbscan(
         panoramas, dbscan_eps, dbscan_min_samples, output_dir
     )
+    
+    # Enrich panorama database using DBSCAN centroids
+    enriched_panoramas = enrich_panorama_database_from_centroids(
+        centroids=centroids,
+        renabap_buffered=renabap_buffered,
+        data_dir=output_dir,
+        max_workers=10,
+        verbose=True
+    )
+    
+    # Re-run DBSCAN on enriched panoramas to get final centroids
+    print("\nRe-running DBSCAN on enriched panorama database...")
+    enriched_dbscan_results, enriched_centroids = process_dbscan(
+        enriched_panoramas, 
+        eps=dbscan_eps, 
+        min_samples=dbscan_min_samples, 
+        data_dir=output_dir,
+        output_prefix="enriched_"
+    )
+    
+    # Save a comparison of original vs enriched centroids
+    print("\nComparing original vs enriched DBSCAN results:")
+    print(f"Original clusters: {len(centroids)}")
+    print(f"Enriched clusters: {len(enriched_centroids)}")
+    print(f"Difference: {len(enriched_centroids) - len(centroids)} clusters")
+
+    centroids = enriched_centroids  # Use enriched centroids for downstream tasks
+    dbscan_results = enriched_dbscan_results  # Use enriched results for downstream tasks
+    
 
     # Optional: Evaluate clustering
     # clustering_eval = evaluate_clustering_full(panoramas, 5, 10, 1, output_dir)
@@ -88,7 +117,7 @@ def run_region(region_slug: str, region_osm: str) -> None:
         capture_points=centroids,
         buffer_dist=15,
         data_dir=output_dir,
-        check=True
+        buffer_polygons=5
     )
     
     # Process heading and FOV
@@ -96,7 +125,7 @@ def run_region(region_slug: str, region_osm: str) -> None:
         panos=joined,
         control_points=centroids,
         data_dir=output_dir,
-        max_distance=10,
+        max_distance=100,
         max_fov=120
     )
     
