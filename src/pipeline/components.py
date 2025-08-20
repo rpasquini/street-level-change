@@ -497,7 +497,10 @@ def calculate_coverage_area(
                 intersecting_capture_points.union_all(),
             )
 
+            total_area = barrio_and_capture_points.area
             total = roads.clip(barrio_and_capture_points)["roadlength"].sum()
+
+            street_density = total / total_area
 
             result = roads.clip(intersecting_capture_points)
 
@@ -515,6 +518,7 @@ def calculate_coverage_area(
                     "total": total,
                     "partial": partial,
                     "coverage": handle_zeroes(partial, total),
+                    "street_density_m_m2": street_density,
                     "geometry": shapely.transform(polygon, transformer.transform, interleaved=False).wkt,
                 }
             )
