@@ -17,7 +17,16 @@ class ImageSegmenter:
         """
         # Load STEGO model
         self.model = LitUnsupervisedSegmenter.load_from_checkpoint(stego_checkpoint_path)
-        self.model.eval().cuda()
+        
+        # Select device (CUDA, MPS for Apple Silicon, or CPU fallback)
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda")
+        elif torch.backends.mps.is_available():
+            self.device = torch.device("mps")  # for Apple Silicon
+        else:
+            self.device = torch.device("cpu")
+
+        self.model.eval().to(self.device)
         
         # Set up image transform
         self.transform = get_transform(448, False, "center")
@@ -47,7 +56,7 @@ class ImageSegmenter:
         
         # Load and transform image
         img = Image.open(image_path).convert('RGB')
-        img_tensor = self.transform(img).unsqueeze(0).cuda()
+        img_tensor = self.transform(img).unsqueeze(0).to(self.device)
         
         # Get STEGO predictions
         with torch.no_grad():
