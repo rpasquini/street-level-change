@@ -332,104 +332,6 @@ def process_barrios(
     return panos
 
 
-def evaluate_clustering(
-    gdf: gpd.GeoDataFrame,
-    start: int,
-    end: int,
-    step: int,
-    data_dir: str,
-) -> pd.DataFrame:
-    """
-    Evaluate clustering with different parameters.
-
-    Parameters
-    ----------
-    gdf : gpd.GeoDataFrame
-        Input GeoDataFrame
-    start : int
-        Start value for epsilon
-    end : int
-        End value for epsilon
-    step : int
-        Step size for epsilon
-    data_dir : str
-        Directory to save output files
-
-    Returns
-    -------
-    pd.DataFrame
-        Evaluation results
-    """
-    print(
-        f"\nEvaluating clustering with eps from {start} to {end} with step {step}"
-    )
-    output = []
-    for eps in range(start, end + 1, step):
-        dbscan_results = unify_points(gdf, eps=eps)
-        compactness = evaluate_compactness(dbscan_results)
-        compactness["eps"] = str(eps)
-
-        output.append(compactness)
-
-    output = pd.concat(output)
-    output.to_csv(os.path.join(data_dir, "clustering_evaluation.csv"))
-
-    return output
-
-
-def evaluate_clustering_full(
-    gdf: gpd.GeoDataFrame,
-    start: int,
-    end: int,
-    step: int,
-    data_dir: str,
-) -> pd.DataFrame:
-    """
-    Perform full clustering evaluation with silhouette scores.
-
-    Parameters
-    ----------
-    gdf : gpd.GeoDataFrame
-        Input GeoDataFrame
-    start : int
-        Start value for epsilon
-    end : int
-        End value for epsilon
-    step : int
-        Step size for epsilon
-    data_dir : str
-        Directory to save output files
-
-    Returns
-    -------
-    pd.DataFrame
-        Full evaluation results
-    """
-    print(
-        f"\nEvaluating clustering with eps from {start} to {end} with step {step}"
-    )
-    from tqdm import tqdm
-
-    output = []
-    for eps in tqdm(range(start, end + 1, step), total=(end - start) // step):
-        dbscan_results = unify_points(gdf, eps=eps)
-        scores = spatial_silhouette_score(dbscan_results)
-        scores["eps"] = str(eps)
-
-        compactness = evaluate_compactness(dbscan_results)
-        compactness["eps"] = str(eps)
-
-        final = compactness.set_index(["cluster_id", "eps"]).join(
-            scores.set_index(["cluster_id", "eps"])
-        )
-        output.append(final)
-
-    output = pd.concat(output)
-    output.to_csv(os.path.join(data_dir, "clustering_evaluation.csv"))
-
-    return output
-
-
 def calculate_coverage_area(
     polygons: gpd.GeoDataFrame,
     capture_points: gpd.GeoDataFrame,
@@ -588,4 +490,3 @@ def process_heading_fov(
         output = load_from_csv(output_path)
 
     return output
-

@@ -104,10 +104,6 @@ def run_region(region_slug: str, region_osm: str) -> None:
     centroids = enriched_centroids  # Use enriched centroids for downstream tasks
     dbscan_results = enriched_dbscan_results  # Use enriched results for downstream tasks
     
-
-    # Optional: Evaluate clustering
-    # clustering_eval = evaluate_clustering_full(panoramas, 5, 10, 1, output_dir)
-
     # Join with barrios data
     joined = process_barrios(dbscan_results, renabap_intersected, barrio_buffer_dist=5, data_dir=output_dir)
 
