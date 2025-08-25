@@ -11,6 +11,7 @@ import geopandas as gpd
 from tqdm import tqdm
 
 from src.core.panorama import Panorama, PanoramaCollection
+from streetview import get_panorama_meta
 from PIL import Image
 
 def search_panoramas(
@@ -223,5 +224,4 @@ def get_panorama_metadata(
     Dict[str, Any]
         Metadata for the panorama
     """
-    from streetview import get_panorama_meta
     return dict(get_panorama_meta(pano_id, api_key))

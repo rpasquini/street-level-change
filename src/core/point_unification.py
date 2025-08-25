@@ -103,155 +103,115 @@ def compute_cluster_centroids(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     return result
 
 
-def evaluate_compactness(
-    gdf: gpd.GeoDataFrame,
-    cluster_col: str = "cluster_id"
-) -> pd.DataFrame:
+def evaluate_dbscan_clusters(clusters_gdf, points_gdf, disable_tqdm=False):
     """
-    Evaluate clustering compactness by computing the average and maximum
-    haversine distance from each point to its cluster centroid.
-
-    Parameters
-    ----------
-    gdf : gpd.GeoDataFrame
-        GeoDataFrame with Point geometries and a cluster column.
-    cluster_col : str, default="cluster_id"
-        Name of the column identifying cluster membership.
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame with one row per cluster:
-        - cluster_id
-        - point_count
-        - avg_distance (meters)
-        - max_distance (meters)
-    """
-    results = []
-
-    for cluster_id, group in gdf.groupby(cluster_col):
-        if len(group) <= 1:
-            continue  # skip singletons or noise
-
-        lats = group.geometry.y.values
-        lons = group.geometry.x.values
-
-        # Compute centroid of cluster
-        centroid_lat = lats.mean()
-        centroid_lon = lons.mean()
-
-        # Compute distances from each point to centroid
-        distances = [
-            haversine_distance(lat, lon, centroid_lat, centroid_lon)
-            for lat, lon in zip(lats, lons)
-        ]
-
-        results.append({
-            "cluster_id": cluster_id,
-            "point_count": len(group),
-            "avg_distance": sum(distances) / len(distances),
-            "max_distance": max(distances)
-        })
-
-    return pd.DataFrame(results)
-
-def _process_point_silhouette(point_data):
-    """
-    Process silhouette score for a single point (used for parallel processing).
+    Evaluate DBSCAN clustering results with simple, interpretable metrics.
     
     Parameters
     ----------
-    point_data : tuple
-        Tuple containing (index, lat, lon, cluster_id, centroids_dict, cluster_col)
+    clusters_gdf : GeoDataFrame
+        DataFrame with cluster centroids. Must have columns:
+        - 'cluster_id'
+        - 'geometry' (Point)
+        
+    points_gdf : GeoDataFrame
+        DataFrame with points assigned to clusters. Must have columns:
+        - 'cluster_id' (DBSCAN labels, -1 = noise)
+        - 'geometry' (Point)
         
     Returns
     -------
-    dict
-        Dictionary with silhouette score results for this point
+    metrics : dict
+        Dictionary with evaluation metrics.
     """
-    idx, lat, lon, cluster_id, centroids, cluster_col = point_data
+
+    # Transform to EPSG:3857 to get metrics in meters
+    clusters_gdf = clusters_gdf.to_crs(3857)
+    points_gdf = points_gdf.to_crs(3857)
     
-    # a: distance to own cluster centroid
-    own_centroid = centroids[cluster_id]
-    a = haversine_distance(lat, lon, own_centroid.y, own_centroid.x)
+    # Exclude noise for cluster-based calculations
+    clustered_points = points_gdf[points_gdf["cluster_id"] != -1]
+    valid_clusters = clusters_gdf[clusters_gdf["cluster_id"] != -1]
     
-    # b: distance to nearest other cluster centroid
-    b = float("inf")
-    for other_id, centroid in centroids.items():
-        if other_id == cluster_id:
-            continue
-        d = haversine_distance(lat, lon, centroid.y, centroid.x)
-        if d < b:
-            b = d
+    # Number of clusters
+    n_clusters = valid_clusters["cluster_id"].nunique()
     
-    # Calculate silhouette score
-    s = (b - a) / max(a, b) if max(a, b) > 0 else 0
+    # Noise ratio
+    noise_ratio = (points_gdf["cluster_id"] == -1).mean()
+    
+    # Cluster size distribution
+    cluster_sizes = clustered_points.groupby("cluster_id").size()
+    avg_cluster_size = cluster_sizes.mean()
+    cluster_size_stats = cluster_sizes.describe().to_dict()
+    
+    # Within-cluster average distance
+    within_distances = []
+    for cid, group in tqdm(clustered_points.groupby("cluster_id"), total=n_clusters, disable=disable_tqdm):
+        centroid = valid_clusters.loc[valid_clusters["cluster_id"] == cid, "geometry"].values[0]
+        dists = group["geometry"].apply(lambda g: g.distance(centroid)).values
+        within_distances.append(np.mean(dists))
+    avg_within_distance = np.mean(within_distances) if within_distances else np.nan
+    
+    # Between-cluster distances (pairwise between centroids)
+    between_distances = []
+    centroids = valid_clusters["geometry"].values
+    for i in tqdm(range(len(centroids)), total=len(centroids), disable=disable_tqdm):
+        for j in range(i+1, len(centroids)):
+            between_distances.append(centroids[i].distance(centroids[j]))
+    avg_between_distance = np.mean(between_distances) if between_distances else np.nan
+    
+    # Separation / Cohesion ratio
+    sep_coh_ratio = (
+        avg_between_distance / avg_within_distance
+        if avg_within_distance and not np.isnan(avg_within_distance) else np.nan
+    )
     
     return {
-        "index": idx,
-        cluster_col: cluster_id,
-        "a_distance": a,
-        "b_distance": b,
-        "silhouette_score": s
+        "n_clusters": n_clusters,
+        "noise_ratio": noise_ratio,
+        "avg_cluster_size": avg_cluster_size,
+        "cluster_size_stats": cluster_size_stats,
+        "avg_within_distance": avg_within_distance,
+        "avg_between_distance": avg_between_distance,
+        "sep_coh_ratio": sep_coh_ratio
     }
 
 
-def spatial_silhouette_score(
-    gdf: gpd.GeoDataFrame,
-    cluster_col: str = "cluster_id",
-    max_workers: int = None
-) -> pd.DataFrame:
+def run_dbscan_evaluations(points_gdf, eps_values, min_samples_values, disable_tqdm=True):
     """
-    Computes a spatial silhouette-like score for each point and cluster using parallel processing.
-
+    Run DBSCAN for a grid of eps and min_samples values,
+    evaluate results with evaluate_dbscan_clusters,
+    and return a DataFrame with all metrics.
+    
     Parameters
     ----------
-    gdf : gpd.GeoDataFrame
-        GeoDataFrame with Point geometries and a 'cluster_id' column.
-    cluster_col : str, default="cluster_id"
-        Column name that contains the cluster ID.
-    max_workers : int, default=None
-        Maximum number of worker processes to use for parallel processing.
-        If None, it will use the number of processors on the machine.
-
+    points_gdf : GeoDataFrame
+        Input points with geometry (no cluster_id column yet).
+    eps_values : list
+        List of eps values to try.
+    min_samples_values : list
+        List of min_samples values to try.
+    metric : str
+        Distance metric for DBSCAN (default = 'euclidean').
+    
     Returns
     -------
-    pd.DataFrame
-        DataFrame with:
-        - pano_id (or index)
-        - cluster_id
-        - a (intra-cluster distance to own centroid)
-        - b (nearest other-cluster centroid distance)
-        - silhouette_score
+    results_df : DataFrame
+        Evaluation results for each (eps, min_samples).
     """
-    from concurrent.futures import ProcessPoolExecutor, as_completed
-    
-    if 'geometry' not in gdf.columns:
-        raise ValueError("GeoDataFrame must contain 'geometry' column with Point geometries.")
-    if cluster_col not in gdf.columns:
-        raise ValueError(f"GeoDataFrame must contain '{cluster_col}' column.")
-
-    gdf = gdf.copy()
-
-    # Compute centroids of each cluster
-    centroids = gdf.groupby(cluster_col).geometry.apply(
-        lambda geoms: Point(geoms.x.mean(), geoms.y.mean())
-    ).to_dict()
-    
-    # Prepare data for parallel processing
-    point_data = [
-        (idx, row.geometry.y, row.geometry.x, row[cluster_col], centroids, cluster_col)
-        for idx, row in gdf.iterrows()
-    ]
     
     results = []
+
+    for eps in tqdm(eps_values):
+        for ms in tqdm(min_samples_values):
+            
+            dbscan_results, centroids = gen_clusters(points_gdf, eps=eps, min_samples=ms)
+            
+            # Evaluate
+            metrics = evaluate_dbscan_clusters(centroids, points_gdf, disable_tqdm=disable_tqdm)
+            metrics["eps"] = eps
+            metrics["min_samples"] = ms
+            
+            results.append(metrics)
     
-    # Process points in parallel
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(_process_point_silhouette, data) for data in point_data]
-        
-        # Collect results as they complete
-        for future in tqdm(as_completed(futures), total=len(futures), desc="Computing silhouette scores"):
-            results.append(future.result())
-    
-    return pd.DataFrame(results).set_index("index")
+    return pd.DataFrame(results)

@@ -5,6 +5,11 @@ run:
 	@poetry run python -m scripts.run_pipeline
 	@echo "Pipeline completed. Check data/regions directory for output files."
 
+evalclusters:
+	@echo "Running cluster parameters evaluation..."
+	@poetry run python -m scripts.cluster_analysis
+	@echo "Pipeline completed. Check data/regions directory for output files."
+
 fetch:
 	@echo "Fetching Street View images..."
 	@poetry run python -m scripts.test_fetcher
