@@ -75,7 +75,7 @@ def get_panoramas_for_point(
 
 def get_panoramas_for_points(
     points_gdf: gpd.GeoDataFrame,
-    max_workers: int = 10,
+    max_workers: int = 20,
     verbose: bool = False
 ) -> PanoramaCollection:
     """
@@ -263,7 +263,7 @@ def fetch_metadata_parallel(pano_ids, api_key, max_workers=10):
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(task, pid): pid for pid in pano_ids}
-        for future in tqdm(as_completed(futures), total=len(futures)):
+        for future in tqdm(as_completed(futures), total=len(futures), desc="Fetching Metadata"):
             pid, date, error = future.result()
             if error:
                 failed_set.append(pid)

@@ -271,8 +271,9 @@ def process_dbscan(
     print(f"DBSCAN found {len(centroids)} clusters")
     return dbscan_results, centroids
 
-def get_panos(regions, dist_points_grid, output_dir, dbscan_eps=2.5, dbscan_min_samples=1):
+def get_panos(regions, dist_points_grid, output_dir, dbscan_eps, dbscan_min_samples=1):
     # Process panoramas
+    print("Getting panoramas using grids...")
     panoramas = get_panos_grid(regions, dist_points_grid, output_dir)
 
     # Process DBSCAN clustering
@@ -281,6 +282,7 @@ def get_panos(regions, dist_points_grid, output_dir, dbscan_eps=2.5, dbscan_min_
     )
     
     # Enrich panorama database using DBSCAN centroids
+    print("Getting second round of panoramas out of clustered points...")
     enriched_panoramas = get_more_panos(
         centroids=centroids,
         regions=regions,
@@ -288,6 +290,11 @@ def get_panos(regions, dist_points_grid, output_dir, dbscan_eps=2.5, dbscan_min_
         max_workers=10,
         verbose=True
     )
+
+    enriched_panoramas = PanoramaCollection.from_geodataframe(enriched_panoramas)
+    enriched_panoramas = enriched_panoramas.clean(regions)
+    enriched_panoramas = enriched_panoramas.to_geodataframe()
+
     return enriched_panoramas
 
 def enrich_barrios(

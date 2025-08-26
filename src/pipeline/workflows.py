@@ -17,6 +17,7 @@ from .components import (
     enrich_barrios,
     calculate_coverage_area,
     calculate_heading_fov,
+    get_metadata_dates
 )
 
 def run_region(region_slug: str, region_osm: str) -> None:
@@ -46,8 +47,9 @@ def run_region(region_slug: str, region_osm: str) -> None:
     dist_points_grid = 50
 
     # DBSCAN parameters
-    dbscan_eps = 2.5
-    dbscan_min_samples = 1
+    first_dbscan_eps = 5
+    final_dbscan_eps = 2.5
+    dbscan_min_samples = 2
 
     # Centroid buffer distance in meters
     centroid_buffer = 5
@@ -58,12 +60,12 @@ def run_region(region_slug: str, region_osm: str) -> None:
     )
     
     # Process panoramas
-    panoramas = get_panos(regions, dist_points_grid, output_dir)
+    panoramas = get_panos(regions, dist_points_grid, output_dir, dbscan_eps=first_dbscan_eps)
 
     # Re-run DBSCAN on enriched panoramas to get final centroids
     dbscan_results, centroids = process_dbscan(
         panoramas, 
-        eps=dbscan_eps, 
+        eps=final_dbscan_eps, 
         min_samples=dbscan_min_samples, 
         data_dir=output_dir,
         output_prefix="enriched_"
