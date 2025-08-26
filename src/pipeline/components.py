@@ -33,7 +33,7 @@ from src.core.geo_utils import (
 )
 
 
-def process_region(
+def prepare_region(
     region_osm: str, buffer_dist: int, data_dir: str
 ) -> Tuple[
     gpd.GeoDataFrame, gpd.GeoSeries, gpd.GeoDataFrame, gpd.GeoDataFrame
@@ -91,10 +91,11 @@ def process_region(
     else:
         renabap_buffered = load_from_csv(renabap_buffered_path)
 
-    return region_gdf, mask, renabap_intersected, renabap_buffered
+    regions = pd.concat([renabap_intersected, renabap_buffered])
+    return regions, renabap_intersected, renabap_buffered
 
 
-def process_panos(
+def get_panos_grid(
     renabap_buffered: gpd.GeoDataFrame, dist_points_grid: int, data_dir: str
 ) -> gpd.GeoDataFrame:
     """
@@ -133,8 +134,8 @@ def process_panos(
     return panoramas
 
 
-def enrich_panorama_database_from_centroids(
-    centroids: gpd.GeoDataFrame, renabap_buffered: gpd.GeoDataFrame, data_dir: str, max_workers: int = 10, verbose: bool = True
+def get_more_panos(
+    centroids: gpd.GeoDataFrame, regions: gpd.GeoDataFrame, data_dir: str, max_workers: int = 10, verbose: bool = True
 ) -> gpd.GeoDataFrame:
     """
     Enrich panorama database by querying at each DBSCAN centroid location.
@@ -183,7 +184,7 @@ def enrich_panorama_database_from_centroids(
     enriched_panoramas = get_panoramas_for_points(
         centroids, max_workers=max_workers, verbose=verbose
     )
-    enriched_panoramas = enriched_panoramas.clean(renabap_buffered)
+    enriched_panoramas = enriched_panoramas.clean(regions)
     
     combined_panoramas = []
     # Combine with original panoramas if available
@@ -272,6 +273,24 @@ def process_dbscan(
     print(f"DBSCAN found {len(centroids)} clusters")
     return dbscan_results, centroids
 
+def get_panos(regions, dist_points_grid, output_dir):
+    # Process panoramas
+    panoramas = get_panos_grid(regions, dist_points_grid, output_dir)
+
+    # Process DBSCAN clustering
+    _, centroids = process_dbscan(
+        panoramas, dbscan_eps, dbscan_min_samples, output_dir
+    )
+    
+    # Enrich panorama database using DBSCAN centroids
+    enriched_panoramas = get_more_panos(
+        centroids=centroids,
+        regions=regions,
+        data_dir=output_dir,
+        max_workers=10,
+        verbose=True
+    )
+    return enriched_panoramas
 
 def process_barrios(
     panos: gpd.GeoDataFrame,

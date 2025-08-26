@@ -6,7 +6,7 @@ This module provides components and workflows for processing street-level imager
 
 from .workflows import run_region
 from .components import (
-    process_region,
+    prepare_region,
     process_panos,
     process_dbscan,
     process_barrios,
@@ -17,7 +17,7 @@ from .components import (
 
 __all__ = [
     'run_region',
-    'process_region',
+    'prepare_region',
     'process_panos',
     'process_dbscan',
     'process_barrios',
