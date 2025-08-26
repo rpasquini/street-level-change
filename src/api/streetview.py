@@ -225,3 +225,49 @@ def get_panorama_metadata(
         Metadata for the panorama
     """
     return dict(get_panorama_meta(pano_id, api_key))
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
+
+def fetch_metadata_parallel(pano_ids, api_key, max_workers=10):
+    """
+    Fetch panorama metadata in parallel.
+    
+    Parameters
+    ----------
+    pano_ids : list
+        List of panorama IDs.
+    api_key : str
+        API key for the metadata function.
+    max_workers : int
+        Number of parallel workers (default=10).
+        
+    Returns
+    -------
+    metadata_dates : dict
+        Mapping pano_id -> date.
+    failed_set : list
+        List of pano_ids that failed.
+    """
+
+    metadata_dates = {}
+    failed_set = []
+
+    def task(pid):
+        """Wrapper to fetch metadata for one pano_id."""
+        try:
+            metadata = get_panorama_metadata(pid, api_key)
+            return pid, metadata['date'], None
+        except Exception as e:
+            return pid, None, e
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(task, pid): pid for pid in pano_ids}
+        for future in tqdm(as_completed(futures), total=len(futures)):
+            pid, date, error = future.result()
+            if error:
+                failed_set.append(pid)
+            else:
+                metadata_dates[pid] = date
+
+    return metadata_dates, failed_set

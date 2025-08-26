@@ -15,8 +15,6 @@ from shapely import union, buffer
 
 from src.data_handlers.exporters import export_to_csv
 from src.core.point_unification import (
-    evaluate_compactness,
-    spatial_silhouette_score,
     unify_points,
     compute_cluster_centroids,
 )
@@ -273,7 +271,7 @@ def process_dbscan(
     print(f"DBSCAN found {len(centroids)} clusters")
     return dbscan_results, centroids
 
-def get_panos(regions, dist_points_grid, output_dir):
+def get_panos(regions, dist_points_grid, output_dir, dbscan_eps=2.5, dbscan_min_samples=1):
     # Process panoramas
     panoramas = get_panos_grid(regions, dist_points_grid, output_dir)
 
@@ -292,7 +290,7 @@ def get_panos(regions, dist_points_grid, output_dir):
     )
     return enriched_panoramas
 
-def process_barrios(
+def enrich_barrios(
     panos: gpd.GeoDataFrame,
     renabap_intersected: gpd.GeoDataFrame,
     barrio_buffer_dist: int,
@@ -451,7 +449,7 @@ def calculate_coverage_area(
     return coverage_per_barrio
 
 
-def process_heading_fov(
+def calculate_heading_fov(
     panos: gpd.GeoDataFrame,
     control_points: gpd.GeoDataFrame,
     data_dir: str,
@@ -509,3 +507,38 @@ def process_heading_fov(
         output = load_from_csv(output_path)
 
     return output
+
+def get_metadata_dates(
+    panoramas: gpd.GeoDataFrame,
+    api_key: str,
+    data_dir: str,
+):
+    """
+    Get metadata dates for panoramas.
+    
+    Parameters
+    ----------
+    panoramas : gpd.GeoDataFrame
+        Panorama data
+    api_key : str
+        API key for the metadata function
+    data_dir : str
+        Directory to save output files
+    
+    Returns
+    -------
+    gpd.GeoDataFrame
+        Panorama data with metadata dates
+    """
+    panos_w_dates_path = os.path.join(data_dir, "panos_w_dates.csv")
+    if os.path.exists(panos_w_dates_path):
+        return load_from_csv(panos_w_dates_path)
+    else:
+        pano_ids = panoramas["pano_id"].tolist()
+        metadata_dates, failed_set = fetch_metadata_parallel(pano_ids, api_key)
+        panos_w_dates = panoramas.copy()
+        panos_w_dates["date"] = panos_w_dates["pano_id"].map(metadata_dates)
+        panos_w_dates.to_csv(panos_w_dates_path)
+        print(f"Failed to fetch metadata for {len(failed_set)} panoramas.")
+        pd.DataFrame(failed_set, columns=["pano_id"]).to_csv(os.path.join(data_dir, "failed_panos.csv"))
+        return panos_w_dates

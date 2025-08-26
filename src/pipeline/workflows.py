@@ -14,9 +14,9 @@ from .components import (
     get_panos,
     prepare_region,
     process_dbscan,
-    process_barrios,
+    enrich_barrios,
     calculate_coverage_area,
-    process_heading_fov,
+    calculate_heading_fov,
 )
 
 def run_region(region_slug: str, region_osm: str) -> None:
@@ -70,7 +70,7 @@ def run_region(region_slug: str, region_osm: str) -> None:
     )
     
     # Join with barrios data
-    joined = process_barrios(dbscan_results, renabap_intersected, barrio_buffer_dist=5, data_dir=output_dir)
+    panoramas = enrich_barrios(dbscan_results, renabap_intersected, barrio_buffer_dist=5, data_dir=output_dir)
 
     # Calculate coverage area metrics
     coverage = calculate_coverage_area(
@@ -82,12 +82,18 @@ def run_region(region_slug: str, region_osm: str) -> None:
     )
     
     # Process heading and FOV
-    heading_fov = process_heading_fov(
-        panos=joined,
+    heading_fov = calculate_heading_fov(
+        panos=panoramas,
         control_points=centroids,
         data_dir=output_dir,
         max_distance=100,
         max_fov=120
+    )
+    
+    panos_w_dates = get_metadata_dates(
+        panoramas,
+        api_key,
+        data_dir=output_dir
     )
     
     print(f"Region processing completed for {region_slug}")
