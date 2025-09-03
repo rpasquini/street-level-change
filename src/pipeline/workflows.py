@@ -92,6 +92,7 @@ def run_region(region_slug: str, region_osm: str) -> None:
         max_fov=120
     )
     
+    api_key = os.getenv("GOOGLE_STREET_VIEW_API_KEY")
     panos_w_dates = get_metadata_dates(
         panoramas,
         api_key,

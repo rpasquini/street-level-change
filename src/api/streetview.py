@@ -69,7 +69,12 @@ def get_panoramas_for_point(
         Collection of panoramas found near the point
     """
     lat, lon = point_geometry.y, point_geometry.x
-    panoramas = search_panoramas(lat=lat, lon=lon)
+    try:
+        panoramas = search_panoramas(lat=lat, lon=lon)
+    except Exception as e:
+        print(f"Error getting panoramas for lat {lat}, lon {lon}: {e}")
+        return PanoramaCollection()
+        
     return PanoramaCollection(panoramas)
 
 
@@ -156,50 +161,6 @@ def download_panorama_image(
         pano.save(output_path)
     return pano
 
-def download_streetview_images(
-    pano_id: str,
-    api_key: str,
-    data_dir: str,
-    fov: int = 120,
-    width: int = 640,
-    height: int = 640,
-) -> None:
-    """
-    Download streetview images for a panorama.
-    
-    Parameters
-    ----------
-    pano_id : str
-        Panorama ID
-    api_key : str
-        Google Street View API key
-    data_dir : str
-        Directory to save output files
-    fov : int, default=120
-        Field of view in degrees
-    width : int, default=640
-        Image width in pixels
-    height : int, default=640
-        Image height in pixels
-    """
-    from streetview import get_streetview
-
-    pitches = [0, 90, 180, 270]
-    for pitch in pitches:
-        try:
-            streetview = get_streetview(
-                pano_id,
-                api_key,
-                fov=fov,
-                width=width,
-                height=height,
-                pitch=pitch,
-            )
-            if data_dir:
-                streetview.save(f"{data_dir}/images/{pano_id}_{pitch}.jpeg")
-        except Exception as e:
-            print(f"Error downloading streetview images for {pano_id}: {e}")
-            
 def get_panorama_metadata(
     pano_id: str,
     api_key: str,

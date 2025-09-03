@@ -9,9 +9,11 @@ from src.pipeline import run_region
 def run_points():
     """Run the region analysis using the pipeline module."""
     # Region to process
-    region_slug = "tresdefebrero"
-    region_osm = "Partido de Tres de Febrero, Buenos Aires, Argentina"
+    # region_slug = "tresdefebrero"
+    # region_osm = "Partido de Tres de Febrero, Buenos Aires, Argentina"
     
+    region_slug="mercedes"
+    region_osm = "Mercedes, Buenos Aires, Argentina"
     print(f"Processing region: {region_slug} ({region_osm})")
     run_region(region_slug, region_osm)
     print("Processing complete!")

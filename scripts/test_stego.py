@@ -32,11 +32,11 @@ if __name__ == "__main__":
     segmenter = ImageSegmenter(model)
     
     # Example: Segment a single image
-    image_path = "./data/street_view_images/buenos_aires_view_2015.jpg"  # Replace with your image path
-    metrics = segmenter.segment_image(image_path, "./data/street_view_images/segmentation_results")
-    print("\nSingle Image Metrics:")
-    print("Class Distribution:")
-    for class_name, stats in metrics['class_distribution'].items():
-        print(f"{class_name}: {stats['percentage']:.2f}%")
+    # image_path = "./data/street_view_images/buenos_aires_view_2015.jpg"  # Replace with your image path
+    # metrics = segmenter.segment_image(image_path, "./data/street_view_images/segmentation_results")
+    # print("\nSingle Image Metrics:")
+    # print("Class Distribution:")
+    # for class_name, stats in metrics['class_distribution'].items():
+    #     print(f"{class_name}: {stats['percentage']:.2f}%")
 
-    segmenter.segment_directory("./data/tresdefebrero/image_testing/8312", "./data/tresdefebrero/segmentation_results")
+    segmenter.segment_directory("./data/tresdefebrero/image_testing/342", "./data/tresdefebrero/segmentation_results")

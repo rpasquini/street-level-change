@@ -212,6 +212,7 @@ def get_more_panos(
         enriched_panoramas = combined_panoramas
     
     combined_panoramas = PanoramaCollection(combined_panoramas)
+    combined_panoramas = combined_panoramas.clean(regions)
     # Save the enriched panoramas
     export_to_csv(combined_panoramas.to_dataframe(), enriched_panos_path)
     print(f"Enriched panoramas saved to {enriched_panos_path}")
@@ -290,10 +291,6 @@ def get_panos(regions, dist_points_grid, output_dir, dbscan_eps, dbscan_min_samp
         max_workers=10,
         verbose=True
     )
-
-    enriched_panoramas = PanoramaCollection.from_geodataframe(enriched_panoramas)
-    enriched_panoramas = enriched_panoramas.clean(regions)
-    enriched_panoramas = enriched_panoramas.to_geodataframe()
 
     return enriched_panoramas
 

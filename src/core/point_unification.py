@@ -176,6 +176,14 @@ def evaluate_dbscan_clusters(clusters_gdf, points_gdf, disable_tqdm=False):
         "sep_coh_ratio": sep_coh_ratio
     }
 
+def gen_clusters(panoramas, eps, min_samples=1):
+    # Apply DBSCAN clustering
+    dbscan_results = unify_points(panoramas, eps=eps, min_samples=min_samples)
+    
+    # Compute centroids
+    #print("Computing cluster centroids")
+    centroids = compute_cluster_centroids(dbscan_results)
+    return dbscan_results, centroids
 
 def run_dbscan_evaluations(points_gdf, eps_values, min_samples_values, disable_tqdm=True):
     """
@@ -205,6 +213,8 @@ def run_dbscan_evaluations(points_gdf, eps_values, min_samples_values, disable_t
     for eps in tqdm(eps_values):
         for ms in tqdm(min_samples_values):
             
+            print(f"Applying DBSCAN clustering with eps={eps}, min_samples={eps}")
+            print()
             dbscan_results, centroids = gen_clusters(points_gdf, eps=eps, min_samples=ms)
             
             # Evaluate
