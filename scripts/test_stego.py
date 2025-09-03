@@ -40,4 +40,12 @@ if __name__ == "__main__":
     #     print(f"{class_name}: {stats['percentage']:.2f}%")
 
     # segmenter.segment_directory("./data/tresdefebrero/image_testing/342", "./data/tresdefebrero/segmentation_results")
-    segmenter.segment_directory("./data/tresdefebrero/image_testing/8312", "./data/tresdefebrero/segmentation_results")
+    # segmenter.segment_directory("./data/tresdefebrero/image_testing/8312", "./data/tresdefebrero/segmentation_results")
+    view_id = "n7r_9DJH7aVQkmd6-NkcPw_W"
+    metrics = segmenter.segment_image(f"./data/tresdefebrero/image_testing/342/{view_id}.jpg")
+
+    import pandas as pd
+    class_dist = metrics["class_distribution"]
+    df = pd.DataFrame({cls: vals["percentage"] for cls, vals in class_dist.items()}, index=[0])
+    df['view_id'] = view_id
+    print(df)

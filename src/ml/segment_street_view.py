@@ -49,7 +49,7 @@ class ImageSegmenter:
             compute_hungarian=True,
         )
 
-    def segment_image(self, image_path, output_dir):
+    def segment_image(self, image_path, output_dir=None):
         """
         Segment a single image and compute metrics
         Args:
@@ -58,7 +58,7 @@ class ImageSegmenter:
         Returns:
             dict: Dictionary containing segmentation metrics and class distributions
         """
-        os.makedirs(output_dir, exist_ok=True)
+        
 
         # Load and transform image
         img = Image.open(image_path).convert("RGB")
@@ -92,16 +92,18 @@ class ImageSegmenter:
         # Compute metrics and class distributions
         metrics = self._compute_metrics(linear_pred)
 
-        # Save results
-        output_name = os.path.splitext(os.path.basename(image_path))[0]
-        self._save_results(
-            img_tensor,
-            linear_pred,
-            cluster_pred,
-            output_name,
-            output_dir,
-            metrics,
-        )
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+            # Save results
+            output_name = os.path.splitext(os.path.basename(image_path))[0]
+            self._save_results(
+                img_tensor,
+                linear_pred,
+                cluster_pred,
+                output_name,
+                output_dir,
+                metrics,
+            )
 
         return metrics
 

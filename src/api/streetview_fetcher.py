@@ -4,6 +4,8 @@ from PIL import Image
 from io import BytesIO
 import numpy as np
 from dotenv import load_dotenv
+from streetview import get_panorama_meta
+from typing import Dict, Any
 
 # Load environment variables
 load_dotenv()
@@ -175,6 +177,30 @@ class StreetViewFetcher:
         # Save the image
         img.save(output_path)
         return output_path
+
+    def get_panorama_metadata(
+        self,
+        pano_id: str,
+    ) -> Dict[str, Any]:
+        """
+        Get metadata for a panorama.
+
+        Quota: This function doesn't use up any quota or charge on your API_KEY.
+
+        Endpoint documented at:
+        https://developers.google.com/maps/documentation/streetview/metadata
+        
+        Parameters
+        ----------
+        pano_id : str
+            Panorama ID
+        
+        Returns
+        -------
+        Dict[str, Any]
+            Metadata for the panorama
+        """
+        return dict(get_panorama_meta(pano_id, self.api_key)) 
 
 def save_panorama_sequence(images, output_dir):
     """
