@@ -133,36 +133,28 @@ class ImageSegmenter:
 
         return aggregated_metrics
 
-    def _compute_metrics(self, cluster_pred):
+    def _compute_metrics(self, linear_pred):
         """
         Compute metrics for segmentation results
         Args:
-            cluster_pred: Cluster predictions (numpy array or torch tensor)
+            linear_pred: Linear predictions (numpy array or torch tensor)
         Returns:
             dict: Dictionary containing metrics
         """
         # Convert numpy array to torch tensor if needed
-        if isinstance(cluster_pred, np.ndarray):
-            cluster_pred = torch.from_numpy(cluster_pred)
+        if isinstance(linear_pred, np.ndarray):
+            linear_pred = torch.from_numpy(linear_pred)
 
         # Get pixel distribution for each class
         class_pixels = {}
-        total_pixels = cluster_pred.numel()
+        total_pixels = linear_pred.numel()
 
-        # Update metrics with current predictions
-        # Create a dummy target tensor of zeros since we don't have ground truth
-        dummy_target = torch.zeros_like(cluster_pred)
-        self.cluster_metrics.update(cluster_pred, dummy_target)
-
-        # Compute metrics to initialize assignments
-        self.cluster_metrics.compute()
-
-        # Map cluster predictions to class labels using Hungarian matching
-        mapped_predictions = self.cluster_metrics.map_clusters(cluster_pred)
-
+        # For linear predictions, we don't need Hungarian matching
+        # since they already map directly to class indices
+        
         # Compute pixel distribution for each class
         for class_idx in range(self.n_classes):
-            pixels = (mapped_predictions == class_idx).sum().item()
+            pixels = (linear_pred == class_idx).sum().item()
             percentage = (pixels / total_pixels) * 100
             class_pixels[self.class_labels[class_idx]] = {
                 "pixel_count": pixels,

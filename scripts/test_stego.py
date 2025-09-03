@@ -39,4 +39,5 @@ if __name__ == "__main__":
     # for class_name, stats in metrics['class_distribution'].items():
     #     print(f"{class_name}: {stats['percentage']:.2f}%")
 
-    segmenter.segment_directory("./data/tresdefebrero/image_testing/342", "./data/tresdefebrero/segmentation_results")
+    # segmenter.segment_directory("./data/tresdefebrero/image_testing/342", "./data/tresdefebrero/segmentation_results")
+    segmenter.segment_directory("./data/tresdefebrero/image_testing/8312", "./data/tresdefebrero/segmentation_results")
