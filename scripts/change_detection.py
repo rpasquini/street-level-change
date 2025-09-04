@@ -5,8 +5,8 @@ from src.ml.segment_street_view import ImageSegmenter
 import os
 
 
-CLUSTER_IDS = [254]
-
+CLUSTER_IDS = [254, 342, 8312]
+DATA_DIR = './data/tresdefebrero'
 STEGO_MODELS_FOLDER = "./src/ml/stego/saved_models"
 STEGO_MODEL_NAME = "cocostuff27_vit_base_5.ckpt"  # Path to STEGO checkpoint
 
@@ -15,7 +15,7 @@ model = os.path.join(STEGO_MODELS_FOLDER, STEGO_MODEL_NAME)
 panos = pd.read_csv('./data/tresdefebrero/heading_fov.csv', index_col=0)
 panos = panos[panos.cluster_id.isin(CLUSTER_IDS)].reset_index()
 
-fetcher = StreetViewFetcher(data_dir=f"data/tresdefebrero/image_testing")
+fetcher = StreetViewFetcher(data_dir=f"{DATA_DIR}/images")
 
 os.makedirs(fetcher.data_dir, exist_ok=True)
 
@@ -30,21 +30,21 @@ for _, row in panos.iterrows():
     date = fetcher.get_panorama_metadata(panoid)["date"]
     # Fetch and save specific view using the parameters from the URL
     image_path = os.path.join(
-        fetcher.data_dir, f"{cluster_id}/{view_id}.jpg"
+        fetcher.data_dir, f"cluster_{cluster_id}/view_{view_id}.jpg"
     )
     if os.path.exists(image_path):
         print("Image exists...")
     else:
         os.makedirs(os.path.dirname(image_path), exist_ok=True)
-        img = fetcher.get_panorama_by_id(
-            panoid=panoid,
-            heading=heading,
-            fov=fov
-        )
-        img.save(image_path)
+        # img = fetcher.get_panorama_by_id(
+        #     panoid=panoid,
+        #     heading=heading,
+        #     fov=fov
+        # )
+        # img.save(image_path)
 
     segmenter = ImageSegmenter(model)
-    metrics = segmenter.segment_image(image_path)
+    metrics = segmenter.segment_image(image_path, output_dir=f"{DATA_DIR}/segmentation/segmented_images/cluster_{cluster_id}")
     class_dist = metrics["class_distribution"]
     df = pd.DataFrame({cls: vals["percentage"] for cls, vals in class_dist.items()}, index=[0])
     df['view_id'] = view_id
@@ -54,7 +54,7 @@ for _, row in panos.iterrows():
     output.append(df)
 
 output = pd.concat(output).reset_index(drop=True)
-output.to_csv(f'./data/tresdefebrero/segmentation_results/{CLUSTER_IDS[0]}.csv', index=False)
+output.to_csv(f'{DATA_DIR}/segmentation/results.csv', index=False)
 
 
 """
