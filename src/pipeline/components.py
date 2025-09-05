@@ -15,8 +15,6 @@ from shapely import union, buffer
 
 from src.data_handlers.exporters import export_to_csv
 from src.core.point_unification import (
-    evaluate_compactness,
-    spatial_silhouette_score,
     unify_points,
     compute_cluster_centroids,
 )
@@ -33,7 +31,7 @@ from src.core.geo_utils import (
 )
 
 
-def process_region(
+def prepare_region(
     region_osm: str, buffer_dist: int, data_dir: str
 ) -> Tuple[
     gpd.GeoDataFrame, gpd.GeoSeries, gpd.GeoDataFrame, gpd.GeoDataFrame
@@ -91,10 +89,11 @@ def process_region(
     else:
         renabap_buffered = load_from_csv(renabap_buffered_path)
 
-    return region_gdf, mask, renabap_intersected, renabap_buffered
+    regions = pd.concat([renabap_intersected, renabap_buffered])
+    return regions, renabap_intersected, renabap_buffered
 
 
-def process_panos(
+def get_panos_grid(
     renabap_buffered: gpd.GeoDataFrame, dist_points_grid: int, data_dir: str
 ) -> gpd.GeoDataFrame:
     """
@@ -133,8 +132,8 @@ def process_panos(
     return panoramas
 
 
-def enrich_panorama_database_from_centroids(
-    centroids: gpd.GeoDataFrame, renabap_buffered: gpd.GeoDataFrame, data_dir: str, max_workers: int = 10, verbose: bool = True
+def get_more_panos(
+    centroids: gpd.GeoDataFrame, regions: gpd.GeoDataFrame, data_dir: str, max_workers: int = 10, verbose: bool = True
 ) -> gpd.GeoDataFrame:
     """
     Enrich panorama database by querying at each DBSCAN centroid location.
@@ -183,7 +182,7 @@ def enrich_panorama_database_from_centroids(
     enriched_panoramas = get_panoramas_for_points(
         centroids, max_workers=max_workers, verbose=verbose
     )
-    enriched_panoramas = enriched_panoramas.clean(renabap_buffered)
+    enriched_panoramas = enriched_panoramas.clean(regions)
     
     combined_panoramas = []
     # Combine with original panoramas if available
@@ -213,6 +212,7 @@ def enrich_panorama_database_from_centroids(
         enriched_panoramas = combined_panoramas
     
     combined_panoramas = PanoramaCollection(combined_panoramas)
+    combined_panoramas = combined_panoramas.clean(regions)
     # Save the enriched panoramas
     export_to_csv(combined_panoramas.to_dataframe(), enriched_panos_path)
     print(f"Enriched panoramas saved to {enriched_panos_path}")
@@ -272,8 +272,29 @@ def process_dbscan(
     print(f"DBSCAN found {len(centroids)} clusters")
     return dbscan_results, centroids
 
+def get_panos(regions, dist_points_grid, output_dir, dbscan_eps, dbscan_min_samples=1):
+    # Process panoramas
+    print("Getting panoramas using grids...")
+    panoramas = get_panos_grid(regions, dist_points_grid, output_dir)
 
-def process_barrios(
+    # Process DBSCAN clustering
+    _, centroids = process_dbscan(
+        panoramas, dbscan_eps, dbscan_min_samples, output_dir
+    )
+    
+    # Enrich panorama database using DBSCAN centroids
+    print("Getting second round of panoramas out of clustered points...")
+    enriched_panoramas = get_more_panos(
+        centroids=centroids,
+        regions=regions,
+        data_dir=output_dir,
+        max_workers=10,
+        verbose=True
+    )
+
+    return enriched_panoramas
+
+def enrich_barrios(
     panos: gpd.GeoDataFrame,
     renabap_intersected: gpd.GeoDataFrame,
     barrio_buffer_dist: int,
@@ -330,104 +351,6 @@ def process_barrios(
         panos = load_from_csv(joined_path)
 
     return panos
-
-
-def evaluate_clustering(
-    gdf: gpd.GeoDataFrame,
-    start: int,
-    end: int,
-    step: int,
-    data_dir: str,
-) -> pd.DataFrame:
-    """
-    Evaluate clustering with different parameters.
-
-    Parameters
-    ----------
-    gdf : gpd.GeoDataFrame
-        Input GeoDataFrame
-    start : int
-        Start value for epsilon
-    end : int
-        End value for epsilon
-    step : int
-        Step size for epsilon
-    data_dir : str
-        Directory to save output files
-
-    Returns
-    -------
-    pd.DataFrame
-        Evaluation results
-    """
-    print(
-        f"\nEvaluating clustering with eps from {start} to {end} with step {step}"
-    )
-    output = []
-    for eps in range(start, end + 1, step):
-        dbscan_results = unify_points(gdf, eps=eps)
-        compactness = evaluate_compactness(dbscan_results)
-        compactness["eps"] = str(eps)
-
-        output.append(compactness)
-
-    output = pd.concat(output)
-    output.to_csv(os.path.join(data_dir, "clustering_evaluation.csv"))
-
-    return output
-
-
-def evaluate_clustering_full(
-    gdf: gpd.GeoDataFrame,
-    start: int,
-    end: int,
-    step: int,
-    data_dir: str,
-) -> pd.DataFrame:
-    """
-    Perform full clustering evaluation with silhouette scores.
-
-    Parameters
-    ----------
-    gdf : gpd.GeoDataFrame
-        Input GeoDataFrame
-    start : int
-        Start value for epsilon
-    end : int
-        End value for epsilon
-    step : int
-        Step size for epsilon
-    data_dir : str
-        Directory to save output files
-
-    Returns
-    -------
-    pd.DataFrame
-        Full evaluation results
-    """
-    print(
-        f"\nEvaluating clustering with eps from {start} to {end} with step {step}"
-    )
-    from tqdm import tqdm
-
-    output = []
-    for eps in tqdm(range(start, end + 1, step), total=(end - start) // step):
-        dbscan_results = unify_points(gdf, eps=eps)
-        scores = spatial_silhouette_score(dbscan_results)
-        scores["eps"] = str(eps)
-
-        compactness = evaluate_compactness(dbscan_results)
-        compactness["eps"] = str(eps)
-
-        final = compactness.set_index(["cluster_id", "eps"]).join(
-            scores.set_index(["cluster_id", "eps"])
-        )
-        output.append(final)
-
-    output = pd.concat(output)
-    output.to_csv(os.path.join(data_dir, "clustering_evaluation.csv"))
-
-    return output
 
 
 def calculate_coverage_area(
@@ -497,7 +420,10 @@ def calculate_coverage_area(
                 intersecting_capture_points.union_all(),
             )
 
+            total_area = barrio_and_capture_points.area
             total = roads.clip(barrio_and_capture_points)["roadlength"].sum()
+
+            street_density = total / total_area
 
             result = roads.clip(intersecting_capture_points)
 
@@ -515,6 +441,7 @@ def calculate_coverage_area(
                     "total": total,
                     "partial": partial,
                     "coverage": handle_zeroes(partial, total),
+                    "street_density_m_m2": street_density,
                     "geometry": shapely.transform(polygon, transformer.transform, interleaved=False).wkt,
                 }
             )
@@ -526,7 +453,7 @@ def calculate_coverage_area(
     return coverage_per_barrio
 
 
-def process_heading_fov(
+def calculate_heading_fov(
     panos: gpd.GeoDataFrame,
     control_points: gpd.GeoDataFrame,
     data_dir: str,
@@ -585,3 +512,37 @@ def process_heading_fov(
 
     return output
 
+def get_metadata_dates(
+    panoramas: gpd.GeoDataFrame,
+    api_key: str,
+    data_dir: str,
+):
+    """
+    Get metadata dates for panoramas.
+    
+    Parameters
+    ----------
+    panoramas : gpd.GeoDataFrame
+        Panorama data
+    api_key : str
+        API key for the metadata function
+    data_dir : str
+        Directory to save output files
+    
+    Returns
+    -------
+    gpd.GeoDataFrame
+        Panorama data with metadata dates
+    """
+    panos_w_dates_path = os.path.join(data_dir, "panos_w_dates.csv")
+    if os.path.exists(panos_w_dates_path):
+        return load_from_csv(panos_w_dates_path)
+    else:
+        pano_ids = panoramas["pano_id"].tolist()
+        metadata_dates, failed_set = fetch_metadata_parallel(pano_ids, api_key)
+        panos_w_dates = panoramas.copy()
+        panos_w_dates["date"] = panos_w_dates["pano_id"].map(metadata_dates)
+        panos_w_dates.to_csv(panos_w_dates_path)
+        print(f"Failed to fetch metadata for {len(failed_set)} panoramas.")
+        pd.DataFrame(failed_set, columns=["pano_id"]).to_csv(os.path.join(data_dir, "failed_panos.csv"))
+        return panos_w_dates

@@ -29,7 +29,16 @@ class DinoFeaturizer(nn.Module):
             num_classes=0)
         for p in self.model.parameters():
             p.requires_grad = False
-        self.model.eval().cuda()
+        
+        # Select device (CUDA, MPS for Apple Silicon, or CPU fallback)
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda")
+        elif torch.backends.mps.is_available():
+            self.device = torch.device("mps")  # for Apple Silicon
+        else:
+            self.device = torch.device("cpu")
+
+        self.model.eval().to(self.device)
         self.dropout = torch.nn.Dropout2d(p=.1)
 
         if arch == "vit_small" and patch_size == 16:

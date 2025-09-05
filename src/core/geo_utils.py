@@ -268,3 +268,9 @@ def buffer_region(gdf: gpd.GeoDataFrame,
         buffered = buffered.overlay(gdf, how="difference")
     
     return buffered
+
+def df_to_gdf(df):
+    gdf = df.copy()
+    gdf.loc[:, "geometry"] = gdf.geometry.apply(wkt.loads)
+    gdf = gpd.GeoDataFrame(gdf, geometry='geometry', crs=4326)
+    return gdf

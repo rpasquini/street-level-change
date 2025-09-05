@@ -6,22 +6,22 @@ This module provides components and workflows for processing street-level imager
 
 from .workflows import run_region
 from .components import (
-    process_region,
-    process_panos,
+    prepare_region,
+    get_panos,
     process_dbscan,
-    process_barrios,
-    evaluate_clustering,
-    evaluate_clustering_full,
-    calculate_coverage_area
+    enrich_barrios,
+    calculate_coverage_area,
+    calculate_heading_fov,
+    get_metadata_dates
 )
 
 __all__ = [
     'run_region',
-    'process_region',
-    'process_panos',
+    'prepare_region',
+    'get_panos',
     'process_dbscan',
-    'process_barrios',
-    'evaluate_clustering',
-    'evaluate_clustering_full',
-    'calculate_coverage_area'
+    'enrich_barrios',
+    'calculate_coverage_area',
+    'calculate_heading_fov',
+    'get_metadata_dates'
 ]

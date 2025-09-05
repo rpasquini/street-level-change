@@ -122,39 +122,3 @@ def export_to_geojson(data: Union[gpd.GeoDataFrame, PanoramaCollection], file_pa
         Path to the exported file
     """
     return export_panorama_data(data, file_path, format='geojson')
-
-
-def export_plot(
-    fig,
-    output_dir: str,
-    filename: str,
-    formats: List[str] = ['png']
-) -> Dict[str, str]:
-    """
-    Export a matplotlib figure to image files.
-    
-    Parameters
-    ----------
-    fig : matplotlib.figure.Figure
-        Figure to export
-    output_dir : str
-        Directory to save the files
-    filename : str
-        Base filename for the output files (without extension)
-    formats : List[str], default=['png']
-        List of formats to export (png, pdf, svg, etc.)
-        
-    Returns
-    -------
-    Dict[str, str]
-        Dictionary mapping formats to file paths
-    """
-    ensure_directory_exists(output_dir)
-    
-    output_files = {}
-    for fmt in formats:
-        output_path = os.path.join(output_dir, f'{filename}.{fmt}')
-        fig.savefig(output_path)
-        output_files[fmt] = output_path
-    
-    return output_files
